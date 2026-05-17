@@ -95,6 +95,13 @@ This project is for learning and technical practice.
 - HTTP client with Dio and centralized request / response logging via Talker
 - Type-safe Android native method channels generated with Pigeon
 
+### Testing
+
+- Unit tests for domain use cases and data repositories across activity, attraction, and audio guide features
+- Mocked repository, remote data source, and local data source dependencies with `mocktail`
+- Verified Model → Entity mapping, pagination behavior, download flow, local file existence checks, and exception propagation
+- Local CI check script for formatting, static analysis, unit tests, and debug APK build validation
+
 ### Observability and Monitoring
 
 - Integrated Sentry for production-style error tracking and performance monitoring
@@ -147,6 +154,10 @@ This project is for learning and technical practice.
   Timezone-aware scheduling utility (Ensures reminder times are converted and scheduled consistently in the local timezone)
 - permission_handler  
   Permission handling utility (Manages runtime permission requests for calendar write access when adding activity events to the native calendar)
+- flutter_test  
+  Official Flutter testing framework (Provides unit and widget testing utilities for validating business logic, UI behavior, and regression scenarios)
+- mocktail  
+  Mock library for Dart unit testing (Stubs repository and data source dependencies to isolate domain and data layer logic; verifies interaction behavior with `verify` and `verifyNever` without code generation)
 
 ---
 
@@ -381,7 +392,24 @@ travel_audio_guide_flutter
 │  ├─ app
 │  │  └─ app_smoke_test.dart
 │  ├─ features
+│  │  ├─ activity
+│  │  │  ├─ data
+│  │  │  │  └─ repositories
+│  │  │  │     └─ activity_repository_impl_test.dart
+│  │  │  └─ domain
+│  │  │     └─ get_activities_usecase_test.dart
+│  │  ├─ attraction
+│  │  │  ├─ data
+│  │  │  │  └─ repositories
+│  │  │  │     └─ attraction_repository_impl_test.dart
+│  │  │  └─ domain
+│  │  │     └─ get_attractions_usecase_test.dart
 │  │  └─ audio_guide
+│  │     ├─ data
+│  │     │  └─ repositories
+│  │     │     └─ audio_guide_repository_impl_test.dart
+│  │     ├─ domain
+│  │     │  └─ audio_guide_usecase_test.dart
 │  │     └─ presentation
 │  │        └─ controllers
 │  │           └─ audio_guide_list_controller_test.dart
