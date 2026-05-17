@@ -1,6 +1,6 @@
 import 'dart:typed_data';
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:flutter_travel_audio_guide/core/error/exceptions.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/data/datasources/audio_guide_local_data_source.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/data/datasources/audio_guide_remote_data_source.dart';
@@ -9,340 +9,412 @@ import 'package:flutter_travel_audio_guide/features/audio_guide/data/models/audi
 import 'package:flutter_travel_audio_guide/features/audio_guide/data/repositories/audio_guide_repository_impl.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/domain/entities/audio_guide.dart';
 
-// Fake Remote
-class _FakeRemoteDataSource extends AudioGuideRemoteDataSource {
-  _FakeRemoteDataSource({required this.pageModel, this.downloadedBinary})
-    : super(Dio());
+class MockAudioGuideRemoteDataSource extends Mock
+    implements AudioGuideRemoteDataSource {}
 
-  AudioGuidePageModel pageModel;
-  DownloadedAudioBinary? downloadedBinary;
-  final List<String> downloadedUrls = <String>[];
+class MockAudioGuideLocalDataSource extends Mock
+    implements AudioGuideLocalDataSource {}
 
-  @override
-  Future<AudioGuidePageModel> getAudioGuides({
-    required String lang,
-    required int page,
-  }) async {
-    return pageModel;
-  }
+void main() {
+  late MockAudioGuideRemoteDataSource remoteDataSource;
+  late MockAudioGuideLocalDataSource localDataSource;
+  late AudioGuideRepositoryImpl repository;
 
-  @override
-  Future<DownloadedAudioBinary> downloadAudioBinary(String url) async {
-    downloadedUrls.add(url);
-    final result = downloadedBinary;
-    if (result == null) throw DownloadException('download failed');
-    return result;
-  }
-}
+  setUpAll(() {
+    registerFallbackValue(
+      const AudioGuide(
+        id: 0,
+        title: 'fallback',
+        url: '',
+        modified: '',
+        isDownloaded: false,
+      ),
+    );
+    registerFallbackValue(Uint8List(0));
+  });
 
-// Fake Local
-// NOTE: The format returned by `getAudioFilePath` must be consistent with the logic of `_buildFileName`:
-// /audio/{id}_{sanitizedTitle}.mp3
-// Whitespace → _, illegal characters → _, while preserving Chinese characters.
-// In the test, we directly control this fake, so the path can be customized.
-class _FakeLocalDataSource extends AudioGuideLocalDataSource {
-  _FakeLocalDataSource({Set<String>? existingPaths})
-    : existingPaths = existingPaths ?? <String>{};
+  setUp(() {
+    remoteDataSource = MockAudioGuideRemoteDataSource();
+    localDataSource = MockAudioGuideLocalDataSource();
 
-  final Set<String> existingPaths;
-  final Map<String, Uint8List> writtenBytes = <String, Uint8List>{};
+    // If the mocktail method doesn't have a stub, it defaults to returning null.
+    // `writeBytes` returns a `Future<void>`, and null is not a valid value.
+    // This will throw a `_TypeError: Null is not a subtype of Future<void>` at runtime.
+    // This will cause the test to crash before the expected `DownloadException` is thrown.
+    // Add a default stub to `setUp` to ensure all tests are safe.
+    when(
+      () => localDataSource.writeBytes(
+        bytes: any(named: 'bytes'),
+        path: any(named: 'path'),
+      ),
+    ).thenAnswer((_) async {});
 
-  @override
-  Future<String> getAudioFilePath({
-    required int id,
-    required String title,
-  }) async {
-    // Simulate _buildFileName: Replace spaces & illegal characters with _
-    final sanitized = title
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .replaceAll(RegExp(r'\s+'), '_')
-        .trim();
-    final safe = sanitized.isEmpty ? 'audio_$id' : '${id}_$sanitized';
-    return '/audio/$safe.mp3';
-  }
+    repository = AudioGuideRepositoryImpl(
+      remoteDataSource: remoteDataSource,
+      localDataSource: localDataSource,
+    );
+  });
 
-  @override
-  Future<bool> existsPath(String path) async {
-    return existingPaths.contains(path);
-  }
-
-  @override
-  Future<void> writeBytes({
-    required Uint8List bytes,
-    required String path,
-  }) async {
-    writtenBytes[path] = bytes;
-    existingPaths.add(path);
-  }
-}
-
-// Helpers
-AudioGuideModel _model(int id, String title, String modified) {
-  return AudioGuideModel(
-    id: id,
-    title: title,
-    summary: 'Summary $id',
-    url: 'https://example.com/$id.mp3',
-    fileExt: 'mp3',
-    modified: modified,
-  );
-}
-
-AudioGuide _guide({
-  int id = 1,
-  String title = 'Guide 1',
-  String url = 'https://example.com/1.mp3',
-}) {
-  return AudioGuide(
-    id: id,
-    title: title,
-    summary: null,
-    url: url,
+  const tGuide = AudioGuide(
+    id: 1,
+    title: '故宮導覽',
+    summary: '語音導覽',
+    url: 'https://example.com/1.mp3',
     fileExt: 'mp3',
     modified: '2026-05-01',
     isDownloaded: false,
     localFilePath: null,
   );
-}
 
-// Tests
-void main() {
-  group('AudioGuideRepositoryImpl', () {
-    // getAudioGuides
-    group('getAudioGuides', () {
-      test('maps remote models and correctly sets local download status', () async {
-        // Guide A (id=1) is already on my machine, Guide B (id=2) has not been downloaded.
-        final remote = _FakeRemoteDataSource(
-          pageModel: AudioGuidePageModel(
-            total: 2,
-            page: 1,
-            data: [_model(1, 'A', '2026-05-01'), _model(2, 'B', '2026-05-02')],
-          ),
-        );
-        // The path must be aligned with the postback format of _FakeLocalDataSource.getAudioFilePath
-        final local = _FakeLocalDataSource(existingPaths: {'/audio/1_A.mp3'});
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        final page = await repo.getAudioGuides(lang: 'zh-tw', page: 1);
-        expect(page.total, 2);
-        expect(page.page, 1);
-        expect(page.items.map((e) => e.id), <int>[1, 2]);
-        final guide1 = page.items.firstWhere((g) => g.id == 1);
-        final guide2 = page.items.firstWhere((g) => g.id == 2);
-        expect(guide1.isDownloaded, isTrue);
-        expect(guide1.localFilePath, '/audio/1_A.mp3');
-        expect(guide2.isDownloaded, isFalse);
-        expect(guide2.localFilePath, isNull);
-      });
-      test('hasMore is false when total <= pageSize (30)', () async {
-        // total=2, page=1, 1*30 >= 2, therefore hasMore = false
-        final remote = _FakeRemoteDataSource(
-          pageModel: AudioGuidePageModel(
-            total: 2,
-            page: 1,
-            data: [_model(1, 'A', '2026-05-01'), _model(2, 'B', '2026-05-02')],
-          ),
-        );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        final page = await repo.getAudioGuides(lang: 'zh-tw', page: 1);
-        expect(page.hasMore, isFalse);
-      });
-      test('hasMore is true when total > page * pageSize', () async {
-        // total=100, page=1, 1*30 < 100, so hasMore = true
-        final remote = _FakeRemoteDataSource(
-          pageModel: AudioGuidePageModel(
-            total: 100,
-            page: 1,
-            data: List.generate(
-              30,
-              (i) => _model(i + 1, 'Guide ${i + 1}', '2026-01-01'),
+  const tModel1 = AudioGuideModel(
+    id: 1,
+    title: '故宮導覽',
+    summary: '語音導覽',
+    url: 'https://example.com/1.mp3',
+    fileExt: 'mp3',
+    modified: '2026-05-01',
+  );
+
+  const tModel2 = AudioGuideModel(
+    id: 2,
+    title: '北投導覽',
+    summary: '溫泉介紹',
+    url: 'https://example.com/2.mp3',
+    fileExt: 'mp3',
+    modified: '2026-05-02',
+  );
+
+  group('AudioGuideRepositoryImpl.getAudioGuides', () {
+    test('正確映射 remote model 並根據本地檔案設定 isDownloaded', () async {
+      when(
+        () => remoteDataSource.getAudioGuides(lang: 'zh-tw', page: 1),
+      ).thenAnswer(
+        (_) async =>
+            AudioGuidePageModel(total: 2, page: 1, data: [tModel1, tModel2]),
+      );
+
+      when(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+      when(
+        () => localDataSource.getAudioFilePath(id: 2, title: '北投導覽'),
+      ).thenAnswer((_) async => '/audio/2_北投導覽.mp3');
+
+      when(
+        () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+      ).thenAnswer((_) async => true);
+
+      when(
+        () => localDataSource.existsPath('/audio/2_北投導覽.mp3'),
+      ).thenAnswer((_) async => false);
+
+      final result = await repository.getAudioGuides(lang: 'zh-tw', page: 1);
+
+      expect(result.total, 2);
+      expect(result.page, 1);
+      expect(result.items.length, 2);
+
+      expect(result.items[0].isDownloaded, isTrue);
+      expect(result.items[0].localFilePath, '/audio/1_故宮導覽.mp3');
+
+      expect(result.items[1].isDownloaded, isFalse);
+      expect(result.items[1].localFilePath, isNull);
+
+      verify(
+        () => remoteDataSource.getAudioGuides(lang: 'zh-tw', page: 1),
+      ).called(1);
+
+      verify(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).called(1);
+
+      verify(
+        () => localDataSource.getAudioFilePath(id: 2, title: '北投導覽'),
+      ).called(1);
+    });
+
+    test('total=2, page=1 → hasMore = false', () async {
+      when(
+        () => remoteDataSource.getAudioGuides(
+          lang: any(named: 'lang'),
+          page: any(named: 'page'),
+        ),
+      ).thenAnswer(
+        (_) async =>
+            AudioGuidePageModel(total: 2, page: 1, data: [tModel1, tModel2]),
+      );
+
+      when(
+        () => localDataSource.getAudioFilePath(
+          id: any(named: 'id'),
+          title: any(named: 'title'),
+        ),
+      ).thenAnswer((_) async => '/audio/fake.mp3');
+
+      when(
+        () => localDataSource.existsPath(any()),
+      ).thenAnswer((_) async => false);
+
+      final result = await repository.getAudioGuides(lang: 'zh-tw', page: 1);
+
+      expect(result.hasMore, isFalse);
+    });
+
+    test('total=100, page=1 → hasMore = true', () async {
+      when(
+        () => remoteDataSource.getAudioGuides(
+          lang: any(named: 'lang'),
+          page: any(named: 'page'),
+        ),
+      ).thenAnswer(
+        (_) async => AudioGuidePageModel(
+          total: 100,
+          page: 1,
+          data: List.generate(
+            30,
+            (i) => AudioGuideModel(
+              id: i + 1,
+              title: 'Guide ${i + 1}',
+              url: 'https://example.com/${i + 1}.mp3',
+              modified: '2026-01-01',
             ),
           ),
-        );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        final page = await repo.getAudioGuides(lang: 'zh-tw', page: 1);
-        expect(page.hasMore, isTrue);
-      });
-      test('returns empty list when remote returns no data', () async {
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-        );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        final page = await repo.getAudioGuides(lang: 'zh-tw', page: 1);
-        expect(page.items, isEmpty);
-        expect(page.hasMore, isFalse);
-      });
-    });
-    // downloadAudioGuide
-    group('downloadAudioGuide', () {
-      test(
-        'returns existing path without downloading again when file exists',
-        () async {
-          final remote = _FakeRemoteDataSource(
-            pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-          );
-          final local = _FakeLocalDataSource(
-            existingPaths: {'/audio/1_Guide_1.mp3'},
-          );
-          final repo = AudioGuideRepositoryImpl(
-            remoteDataSource: remote,
-            localDataSource: local,
-          );
-          final path = await repo.downloadAudioGuide(_guide());
-          expect(path, '/audio/1_Guide_1.mp3');
-          // Important: Remote downloads should not be triggered.
-          expect(remote.downloadedUrls, isEmpty);
-        },
+        ),
       );
-      test('writes bytes when response content-type is audio/mpeg', () async {
-        final fakeBytes = Uint8List.fromList([0xFF, 0xFB, 0x90, 0x00]);
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-          downloadedBinary: DownloadedAudioBinary(
-            bytes: fakeBytes,
-            contentType: 'audio/mpeg',
-            finalUrl: 'https://cdn.example.com/1',
+
+      when(
+        () => localDataSource.getAudioFilePath(
+          id: any(named: 'id'),
+          title: any(named: 'title'),
+        ),
+      ).thenAnswer((_) async => '/audio/fake.mp3');
+
+      when(
+        () => localDataSource.existsPath(any()),
+      ).thenAnswer((_) async => false);
+
+      final result = await repository.getAudioGuides(lang: 'zh-tw', page: 1);
+
+      expect(result.hasMore, isTrue);
+    });
+
+    test('空資料時 items 為空且 hasMore = false', () async {
+      when(
+        () => remoteDataSource.getAudioGuides(
+          lang: any(named: 'lang'),
+          page: any(named: 'page'),
+        ),
+      ).thenAnswer(
+        (_) async => const AudioGuidePageModel(total: 0, page: 1, data: []),
+      );
+
+      final result = await repository.getAudioGuides(lang: 'zh-tw', page: 1);
+
+      expect(result.items, isEmpty);
+      expect(result.hasMore, isFalse);
+
+      verifyNever(
+        () => localDataSource.getAudioFilePath(
+          id: any(named: 'id'),
+          title: any(named: 'title'),
+        ),
+      );
+    });
+  });
+
+  group('AudioGuideRepositoryImpl.downloadAudioGuide', () {
+    test('檔案已存在時直接回傳本地路徑，不重新下載', () async {
+      when(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+      when(
+        () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+      ).thenAnswer((_) async => true);
+
+      final result = await repository.downloadAudioGuide(tGuide);
+
+      expect(result, '/audio/1_故宮導覽.mp3');
+
+      verifyNever(() => remoteDataSource.downloadAudioBinary(any()));
+
+      verifyNever(
+        () => localDataSource.writeBytes(
+          bytes: any(named: 'bytes'),
+          path: any(named: 'path'),
+        ),
+      );
+    });
+
+    test('檔案不存在時，下載並寫入本地，回傳路徑', () async {
+      final fakeBytes = Uint8List.fromList([0xFF, 0xFB, 0x90, 0x00]);
+
+      when(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+      when(
+        () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+      ).thenAnswer((_) async => false);
+
+      when(
+        () => remoteDataSource.downloadAudioBinary('https://example.com/1.mp3'),
+      ).thenAnswer(
+        (_) async => DownloadedAudioBinary(
+          bytes: fakeBytes,
+          contentType: 'audio/mpeg',
+          finalUrl: 'https://example.com/1.mp3',
+        ),
+      );
+
+      when(
+        () => localDataSource.writeBytes(
+          bytes: fakeBytes,
+          path: '/audio/1_故宮導覽.mp3',
+        ),
+      ).thenAnswer((_) async {});
+
+      final result = await repository.downloadAudioGuide(tGuide);
+
+      expect(result, '/audio/1_故宮導覽.mp3');
+
+      verify(
+        () => remoteDataSource.downloadAudioBinary('https://example.com/1.mp3'),
+      ).called(1);
+
+      verify(
+        () => localDataSource.writeBytes(
+          bytes: fakeBytes,
+          path: '/audio/1_故宮導覽.mp3',
+        ),
+      ).called(1);
+    });
+
+    test(
+      'contentType = text/html 且 URL 不含 .mp3 → 拋出 DownloadException',
+      () async {
+        // guide.url cannot end with .mp3,
+        // Otherwise, looksLikeAudio = true, and the repository will not throw a DownloadException.
+        // Checks for looksLikeAudio:
+        // contentType.contains('audio') → text/html → false
+        // finalUrl.endsWith('.mp3') → login.html → false
+        // guide.url.endsWith('.mp3') → must also be false here.
+        const htmlGuide = AudioGuide(
+          id: 1,
+          title: '故宮導覽',
+          url: 'https://example.com/download?id=1',
+          // ← 不含 .mp3
+          modified: '2026-05-01',
+          isDownloaded: false,
+        );
+
+        when(
+          () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+        ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+        when(
+          () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+        ).thenAnswer((_) async => false);
+
+        when(
+          () => remoteDataSource.downloadAudioBinary(
+            'https://example.com/download?id=1',
+          ),
+        ).thenAnswer(
+          (_) async => DownloadedAudioBinary(
+            bytes: Uint8List.fromList([60, 104, 116, 109, 108]), // <html
+            contentType: 'text/html',
+            finalUrl: 'https://example.com/login.html', // ← 不含 .mp3
           ),
         );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
+
+        await expectLater(
+          () => repository.downloadAudioGuide(htmlGuide),
+          throwsA(isA<DownloadException>()),
         );
-        final path = await repo.downloadAudioGuide(_guide());
-        expect(path, '/audio/1_Guide_1.mp3');
-        expect(remote.downloadedUrls, ['https://example.com/1.mp3']);
-        expect(local.writtenBytes[path], fakeBytes);
-      });
-      test('accepts mp3 final url even with non-audio content-type', () async {
-        // After a CDN 302 redirect, if the final URL ends with .mp3, it is still considered audio.
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-          downloadedBinary: DownloadedAudioBinary(
+
+        verifyNever(
+          () => localDataSource.writeBytes(
+            bytes: any(named: 'bytes'),
+            path: any(named: 'path'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'contentType = application/octet-stream 但 finalUrl 結尾 .mp3 → 視為音訊',
+      () async {
+        when(
+          () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+        ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+        when(
+          () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+        ).thenAnswer((_) async => false);
+
+        when(
+          () =>
+              remoteDataSource.downloadAudioBinary('https://example.com/1.mp3'),
+        ).thenAnswer(
+          (_) async => DownloadedAudioBinary(
             bytes: Uint8List.fromList([1, 2, 3]),
             contentType: 'application/octet-stream',
             finalUrl: 'https://cdn.example.com/redirect/1.mp3',
           ),
         );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        final path = await repo.downloadAudioGuide(
-          _guide(url: 'https://example.com/download?id=1'),
-        );
-        expect(local.writtenBytes[path], isNotNull);
-      });
-      test(
-        'accepts non-audio content-type when guide.url ends with .mp3',
-        () async {
-          // guide.url itself ends with .mp3 → it is considered audio.
-          final remote = _FakeRemoteDataSource(
-            pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-            downloadedBinary: DownloadedAudioBinary(
-              bytes: Uint8List.fromList([0xFF, 0xFB]),
-              contentType: 'application/octet-stream',
-              finalUrl: 'https://cdn.example.com/no-ext-url',
-            ),
-          );
-          final local = _FakeLocalDataSource();
-          final repo = AudioGuideRepositoryImpl(
-            remoteDataSource: remote,
-            localDataSource: local,
-          );
-          // guide.url = 'https://example.com/1.mp3' (default), ending with .mp3
-          final path = await repo.downloadAudioGuide(_guide());
-          expect(local.writtenBytes[path], isNotNull);
-        },
-      );
-      test(
-        'throws DownloadException when response is HTML (not audio)',
-        () async {
-          // Context: The server is sending back the login page HTML, not MP3.
-          final remote = _FakeRemoteDataSource(
-            pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-            downloadedBinary: DownloadedAudioBinary(
-              bytes: Uint8List.fromList([60, 104, 116, 109, 108]), // <html
-              contentType: 'text/html',
-              finalUrl: 'https://example.com/login.html',
-            ),
-          );
-          final local = _FakeLocalDataSource();
-          final repo = AudioGuideRepositoryImpl(
-            remoteDataSource: remote,
-            localDataSource: local,
-          );
-          expect(
-            () => repo.downloadAudioGuide(
-              _guide(url: 'https://example.com/login.html'),
-            ),
-            throwsA(isA<DownloadException>()),
-          );
-        },
-      );
-      test('does not write file when DownloadException is thrown', () async {
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-          downloadedBinary: DownloadedAudioBinary(
-            bytes: Uint8List.fromList([1]),
-            contentType: 'text/html',
-            finalUrl: 'https://example.com/error.html',
+
+        when(
+          () => localDataSource.writeBytes(
+            bytes: any(named: 'bytes'),
+            path: any(named: 'path'),
           ),
-        );
-        final local = _FakeLocalDataSource();
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        try {
-          await repo.downloadAudioGuide(
-            _guide(url: 'https://example.com/error.html'),
-          );
-        } catch (_) {}
-        expect(local.writtenBytes, isEmpty);
-      });
+        ).thenAnswer((_) async {});
+
+        final result = await repository.downloadAudioGuide(tGuide);
+
+        expect(result, '/audio/1_故宮導覽.mp3');
+
+        verify(
+          () => localDataSource.writeBytes(
+            bytes: any(named: 'bytes'),
+            path: '/audio/1_故宮導覽.mp3',
+          ),
+        ).called(1);
+      },
+    );
+  });
+
+  // ── isGuideDownloaded ─────────────────────────────────────────────────────
+
+  group('AudioGuideRepositoryImpl.isGuideDownloaded', () {
+    test('本地檔案存在時回傳 true', () async {
+      when(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+      when(
+        () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+      ).thenAnswer((_) async => true);
+
+      final result = await repository.isGuideDownloaded(tGuide);
+
+      expect(result, isTrue);
     });
-    // isGuideDownloaded
-    group('isGuideDownloaded', () {
-      test('returns true when local file exists', () async {
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-        );
-        final local = _FakeLocalDataSource(
-          existingPaths: {'/audio/1_Guide_1.mp3'},
-        );
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        expect(await repo.isGuideDownloaded(_guide()), isTrue);
-      });
-      test('returns false when local file does not exist', () async {
-        final remote = _FakeRemoteDataSource(
-          pageModel: const AudioGuidePageModel(total: 0, page: 1, data: []),
-        );
-        final local = _FakeLocalDataSource(); // No existing path
-        final repo = AudioGuideRepositoryImpl(
-          remoteDataSource: remote,
-          localDataSource: local,
-        );
-        expect(await repo.isGuideDownloaded(_guide()), isFalse);
-      });
+
+    test('本地檔案不存在時回傳 false', () async {
+      when(
+        () => localDataSource.getAudioFilePath(id: 1, title: '故宮導覽'),
+      ).thenAnswer((_) async => '/audio/1_故宮導覽.mp3');
+
+      when(
+        () => localDataSource.existsPath('/audio/1_故宮導覽.mp3'),
+      ).thenAnswer((_) async => false);
+
+      final result = await repository.isGuideDownloaded(tGuide);
+
+      expect(result, isFalse);
     });
   });
 }
