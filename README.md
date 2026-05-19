@@ -1,7 +1,15 @@
-# travel_audio_guide_flutter
+# travel-audio-guide-flutter
 
-![CI](https://github.com/tenSunFree/travel_audio_guide_flutter/actions/workflows/ci.yml/badge.svg)
-![CD](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml/badge.svg)
+[![CI](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/ci.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/ci.yml)
+[![CD](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml)
+[![Flutter](https://img.shields.io/badge/Flutter-3.38.10-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.10.9-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2B%20Feature--First-4CAF50)](#architecture)
+[![State](https://img.shields.io/badge/State-Riverpod-1565C0)](https://riverpod.dev)
+[![Data](https://img.shields.io/badge/Data-Offline--First%20%2B%20Drift-009688)](#offline-first-experience)
+[![Interop](https://img.shields.io/badge/Interop-Pigeon-673AB7)](https://pub.dev/packages/pigeon)
+[![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget-FF9800)](#testing)
+[![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-monitoring)
 
 ---
 
