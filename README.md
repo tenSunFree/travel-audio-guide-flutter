@@ -406,13 +406,23 @@ travel_audio_guide_flutter
 │  │  │     └─ get_attractions_usecase_test.dart
 │  │  └─ audio_guide
 │  │     ├─ data
+│  │     │  ├─ models
+│  │     │  │  └─ audio_guide_model_test.dart
 │  │     │  └─ repositories
 │  │     │     └─ audio_guide_repository_impl_test.dart
 │  │     ├─ domain
+│  │     │  ├─ audio_guide_domain_test.dart
 │  │     │  └─ audio_guide_usecase_test.dart
 │  │     └─ presentation
-│  │        └─ controllers
-│  │           └─ audio_guide_list_controller_test.dart
+│  │        ├─ controllers
+│  │        │  ├─ audio_guide_list_controller_test.dart
+│  │        │  ├─ audio_guide_list_state_test.dart
+│  │        │  └─ audio_player_controller_test.dart
+│  │        ├─ pages
+│  │        │  └─ audio_guide_list_page_test.dart
+│  │        └─ widgets
+│  │           ├─ audio_guide_tile_test.dart
+│  │           └─ condition_summary_bar_test.dart
 │  └─ test_helpers
 │     ├─ app_test_harness.dart
 │     ├─ audio_guide_fakes.dart
