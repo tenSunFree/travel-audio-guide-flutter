@@ -22,6 +22,15 @@ class ActivityDao extends DatabaseAccessor<AppDatabase>
     return select(activityTable).get();
   }
 
+  // Retrieve a single record from the local database
+  Future<Activity?> findById(int id) async {
+    final row = await (select(
+      activityTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return null;
+    return _toEntity(row);
+  }
+
   Future<void> upsertAll(List<ActivityModel> models) async {
     final companions = models.map(_toCompanion).toList();
     await batch((b) => b.insertAllOnConflictUpdate(activityTable, companions));

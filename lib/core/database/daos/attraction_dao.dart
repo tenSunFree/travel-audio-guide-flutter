@@ -34,6 +34,14 @@ class AttractionDao extends DatabaseAccessor<AppDatabase>
     }
   }
 
+  Future<Attraction?> findById(int id) async {
+    final row = await (select(
+      attractionTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return null;
+    return _toEntity(row);
+  }
+
   Future<void> upsertAll(List<AttractionModel> models) async {
     final companions = models.map(_toCompanion).toList();
     await batch(

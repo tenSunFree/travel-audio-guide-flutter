@@ -22,6 +22,14 @@ class AudioGuideDao extends DatabaseAccessor<AppDatabase>
     return select(audioGuideTable).get();
   }
 
+  Future<AudioGuide?> findById(int id) async {
+    final row = await (select(
+      audioGuideTable,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return null;
+    return _toEntity(row);
+  }
+
   Future<void> upsertAll(List<AudioGuideTableCompanion> companions) async {
     await batch(
       (b) => b.insertAllOnConflictUpdate(audioGuideTable, companions),
