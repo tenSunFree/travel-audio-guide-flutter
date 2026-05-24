@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../domain/entities/attraction.dart';
 import '../../../../core/widgets/detail_action_buttons.dart';
 
-class AttractionDetailPage extends StatelessWidget {
+class AttractionDetailPage extends ConsumerWidget {
   const AttractionDetailPage({super.key, required this.attraction});
 
   final Attraction attraction;
@@ -18,7 +20,21 @@ class AttractionDetailPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Assembly scheduling data
+    final scheduleItem = DetailScheduleItem(
+      sourceType: 'attraction',
+      sourceId: attraction.id.toString(),
+      title: attraction.name,
+      subtitle: attraction.address,
+      imageUrl: attraction.firstImageUrl.isNotEmpty
+          ? attraction.firstImageUrl
+          : null,
+      address: attraction.address,
+      description: attraction.introduction,
+      location: attraction.address,
+      allDay: false,
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -85,8 +101,15 @@ class AttractionDetailPage extends StatelessWidget {
                   navigateLng: attraction.elong,
                   shareText: _buildAttractionShareText(attraction),
                   shareLabel: '分享景點',
-                  onReminderPressed: () {},
-                  onCalendarPressed: () {},
+                  onReminderPressed: () => DetailScheduleActions.addReminder(
+                    context: context,
+                    ref: ref,
+                    item: scheduleItem,
+                  ),
+                  onCalendarPressed: () => DetailScheduleActions.addToCalendar(
+                    context: context,
+                    item: scheduleItem,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 const Divider(color: AppColors.divider),

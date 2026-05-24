@@ -1,14 +1,9 @@
-import 'package:add_2_calendar/add_2_calendar.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../reminder/di/reminder_providers.dart';
-import '../../../reminder/domain/usecases/create_reminder_usecase.dart';
-import '../../../reminder/presentation/widgets/reminder_bottom_sheet.dart';
+import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../domain/entities/activity.dart';
 import '../../../../core/widgets/detail_action_buttons.dart';
 
@@ -28,6 +23,35 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
   Activity get activity => widget.activity;
 
   static const String _siteBaseUrl = 'https://www.travel.taipei';
+
+  // Assemble the scheduling data for this page
+  // (_parseDate is already defined in the page and can be reused directly)
+  DetailScheduleItem get _scheduleItem => DetailScheduleItem(
+    sourceType: 'activity',
+    sourceId: activity.id.toString(),
+    title: activity.title,
+    subtitle: activity.address,
+    imageUrl: null,
+    address: activity.address,
+    description: activity.description,
+    location: activity.address.isNotEmpty
+        ? activity.address
+        : activity.organizer,
+    startDate: _parseDate(activity.begin),
+    endDate: _parseDate(activity.end),
+    allDay: true,
+  );
+
+  Future<void> _addToCalendar() => DetailScheduleActions.addToCalendar(
+    context: context,
+    item: _scheduleItem,
+  );
+
+  Future<void> _addReminder() => DetailScheduleActions.addReminder(
+    context: context,
+    ref: ref,
+    item: _scheduleItem,
+  );
 
   /// Date utility
   /// "2026-03-26 00:00:00 +08:00" → DateTime, returns null on failure
@@ -94,38 +118,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     return result;
   }
 
-  /// operate
-  Future<void> _addToCalendar() async {
-    final startDate = _parseDate(activity.begin);
-    final endDate = _parseDate(activity.end);
-    if (startDate == null || endDate == null) {
-      _showSnackBar('活動日期格式異常，無法加入行事曆');
-      return;
-    }
-    // Android needs to dynamically obtain calendar permissions
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final status = await Permission.calendarWriteOnly.request();
-      if (!status.isGranted) {
-        if (!mounted) return;
-        _showSnackBar('請允許行事曆權限才能新增活動');
-        return;
-      }
-    }
-    final event = Event(
-      title: activity.title,
-      description: activity.description,
-      location: activity.address.isNotEmpty
-          ? activity.address
-          : activity.organizer,
-      startDate: startDate,
-      endDate: endDate.add(const Duration(days: 1)),
-      allDay: true,
-    );
-    final success = await Add2Calendar.addEvent2Cal(event);
-    if (!mounted) return;
-    _showSnackBar(success ? '已開啟行事曆新增流程' : '無法加入行事曆');
-  }
-
   // The activity coordinates are of type String and need to be converted.
   static double? _parseCoord(String value) {
     final v = double.tryParse(value.trim());
@@ -174,134 +166,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _addReminder() async {
-    if (_isActivityEnded()) {
-      _showSnackBar('活動已結束，無法加入提醒');
-      return;
-    }
-    final defaultTargetTime = _getDefaultReminderTargetTime();
-    final _ = _parseDate(widget.activity.begin);
-    final end = _parseDate(widget.activity.end);
-    final result = await showModalBottomSheet<ReminderBottomSheetResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => ReminderBottomSheet(
-        initialTargetTime: defaultTargetTime,
-        minTargetTime: DateTime.now(),
-        maxTargetTime: end == null
-            ? null
-            : _toExclusiveEndDate(end).subtract(const Duration(minutes: 1)),
-      ),
-    );
-    if (result == null || !mounted) return;
-    final errorMessage = _validateActivityReminderTime(
-      targetTime: result.targetTime,
-      remindBeforeSeconds: result.remindBeforeSeconds,
-    );
-    if (errorMessage != null) {
-      _showSnackBar(errorMessage);
-      return;
-    }
-    try {
-      await ref
-          .read(createReminderUseCaseProvider)
-          .call(
-            CreateReminderParams(
-              sourceType: 'activity',
-              sourceId: widget.activity.id.toString(),
-              title: widget.activity.title,
-              subtitle: widget.activity.address,
-              imageUrl: null,
-              address: widget.activity.address,
-              targetTime: result.targetTime,
-              remindBeforeSeconds: result.remindBeforeSeconds,
-            ),
-          );
-      if (!mounted) return;
-      _showSnackBar('已加入我的旅程提醒');
-    } catch (e) {
-      if (!mounted) return;
-      // Convert technical errors into text that users can understand.
-      final message = _toFriendlyReminderError(e);
-      _showSnackBar(message);
-    }
-  }
-
-  String _toFriendlyReminderError(Object e) {
-    final msg = e.toString();
-    if (msg.contains('exact_alarms_not_permitted')) {
-      return '無法建立精準提醒，請至設定開啟「精確鬧鐘」權限';
-    }
-    if (msg.contains('提醒時間已經過了')) {
-      return '提醒時間已過，請重新設定';
-    }
-    return '加入提醒失敗，請稍後再試';
-  }
-
-  DateTime _toStartOfDay(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
-  }
-
-  DateTime _toExclusiveEndDate(DateTime end) {
-    return DateTime(end.year, end.month, end.day).add(const Duration(days: 1));
-  }
-
-  bool _isActivityEnded() {
-    final end = _parseDate(widget.activity.end);
-    if (end == null) return false;
-
-    final exclusiveEnd = _toExclusiveEndDate(end);
-    return !DateTime.now().isBefore(exclusiveEnd);
-  }
-
-  DateTime _getDefaultReminderTargetTime() {
-    final now = DateTime.now();
-    final begin = _parseDate(widget.activity.begin);
-    final end = _parseDate(widget.activity.end);
-    if (begin == null || end == null) {
-      return now.add(const Duration(hours: 1));
-    }
-    final exclusiveEnd = _toExclusiveEndDate(end);
-    // Event hasn't started yet: Preset event start time
-    if (now.isBefore(begin)) {
-      return begin;
-    }
-    // Event in progress: Preset now + 1 hour, but cannot exceed the exhibition period.
-    final candidate = now.add(const Duration(hours: 1));
-    if (candidate.isBefore(exclusiveEnd)) {
-      return candidate;
-    }
-    // If it's nearing the end, then preset now.
-    return now;
-  }
-
-  String? _validateActivityReminderTime({
-    required DateTime targetTime,
-    required int remindBeforeSeconds,
-  }) {
-    final now = DateTime.now();
-    final begin = _parseDate(widget.activity.begin);
-    final end = _parseDate(widget.activity.end);
-    if (begin == null || end == null) {
-      return null;
-    }
-    final beginDay = _toStartOfDay(begin);
-    final exclusiveEnd = _toExclusiveEndDate(end);
-    if (targetTime.isBefore(beginDay)) {
-      return '提醒時間不能早於活動開始日期';
-    }
-    if (!targetTime.isBefore(exclusiveEnd)) {
-      return '提醒時間已超過活動展期，請選擇活動結束前的時間';
-    }
-    final notifyTime = targetTime.subtract(
-      Duration(seconds: remindBeforeSeconds),
-    );
-    if (notifyTime.isBefore(now)) {
-      return '提醒觸發時間已經過了，請重新設定';
-    }
-    return null;
   }
 
   @override
@@ -419,7 +283,7 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
                   shareText: _buildActivityShareText(),
                   shareLabel: '分享活動',
                   onReminderPressed: _addReminder,
-                  onCalendarPressed: _addToCalendar, // 加這行
+                  onCalendarPressed: _addToCalendar,
                 ),
               ],
             ),

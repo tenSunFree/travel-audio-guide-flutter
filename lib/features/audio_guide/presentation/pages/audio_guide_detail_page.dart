@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../attraction/di/attraction_providers.dart';
 import '../../../attraction/domain/entities/attraction.dart';
+import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../../step_tracking/di/step_tracking_providers.dart';
 import '../../../step_tracking/presentation/widgets/session_summary_card.dart';
 import '../../domain/entities/audio_guide.dart';
@@ -50,6 +51,19 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
     final attractionAsync = ref.watch(attractionsStreamProvider);
     final Attraction? attraction = _resolveAttraction(attractionAsync);
     final pageTitle = attraction?.name ?? widget.guide.title;
+    final scheduleItem = DetailScheduleItem(
+      sourceType: 'audioGuide',
+      sourceId: widget.guide.id.toString(),
+      title: pageTitle,
+      subtitle: attraction?.address,
+      imageUrl: (attraction?.firstImageUrl.isNotEmpty ?? false)
+          ? attraction!.firstImageUrl
+          : null,
+      address: attraction?.address,
+      description: _resolveIntroduction(attraction, widget.guide),
+      location: attraction?.address,
+      allDay: false,
+    );
     final playerState = ref.watch(audioPlayerControllerProvider(localPath));
     final controller = ref.read(
       audioPlayerControllerProvider(localPath).notifier,
@@ -93,8 +107,15 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
               navigateLng: attraction?.elong,
               shareText: _buildGuideShareText(pageTitle, attraction),
               shareLabel: '分享導覽',
-              onReminderPressed: () {},
-              onCalendarPressed: () {},
+              onReminderPressed: () => DetailScheduleActions.addReminder(
+                context: context,
+                ref: ref,
+                item: scheduleItem,
+              ),
+              onCalendarPressed: () => DetailScheduleActions.addToCalendar(
+                context: context,
+                item: scheduleItem,
+              ),
             ),
           ),
           if (stepState.isAvailable &&
