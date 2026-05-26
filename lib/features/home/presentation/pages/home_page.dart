@@ -9,6 +9,7 @@ import '../controllers/home_controller.dart';
 import '../widgets/hero_recommend_card.dart';
 import '../widgets/home_empty_card.dart';
 import '../widgets/home_section_title.dart';
+import '../widgets/home_skeleton.dart';
 import '../widgets/home_subtitle.dart';
 import '../widgets/period_chips.dart';
 import '../widgets/rainy_mode_card.dart';
@@ -96,13 +97,8 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
             ),
-            if (state.isLoading && state.heroCard == null)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: HomeEmptyCard(message: '正在整理今日推薦...'),
-                ),
-              )
+            if (state.isLoading)
+              const SliverToBoxAdapter(child: HomeSkeleton())
             else if (state.errorMessage != null)
               const SliverToBoxAdapter(
                 child: Padding(

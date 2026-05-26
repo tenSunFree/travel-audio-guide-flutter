@@ -42,6 +42,21 @@ class HomeRepository {
     required HomePeriod period,
     required bool isRainyMode,
   }) {
+    // If the database is empty, continue displaying the loading indicator.
+    if (attractions.isEmpty && activities.isEmpty) {
+      return HomeUiState(
+        selectedPeriod: period,
+        isRainyMode: isRainyMode,
+        title: HomePeriodHelper.title(period),
+        subtitle: HomePeriodHelper.subtitle(period),
+        heroCard: null,
+        nearbyCards: const [],
+        activityCards: const [],
+        availableCards: const [],
+        isLoading: true,
+        errorMessage: null,
+      );
+    }
     final now = DateTime.now();
     final attractionCards =
         attractions
