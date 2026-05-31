@@ -8,6 +8,7 @@ import '../utils/app_logger.dart';
 import '../../features/attraction/data/datasources/attraction_remote_data_source.dart';
 import '../../features/audio_guide/data/datasources/audio_guide_remote_data_source.dart';
 import '../../features/activity/data/datasources/activity_remote_data_source.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 enum SyncTarget { attractions, audioGuides, activities }
 
@@ -23,6 +24,7 @@ class AppSyncService {
   final AttractionRemoteDataSource attractionRemote;
   final AudioGuideRemoteDataSource audioGuideRemote;
   final ActivityRemoteDataSource activityRemote;
+
   static const _attractionKey = 'sync_attractions';
   static const _audioGuideKey = 'sync_audio_guides';
   static const _activityKey = 'sync_activities';
@@ -30,16 +32,12 @@ class AppSyncService {
   static const _audioGuideTtl = Duration(hours: 3);
   static const _activityTtl = Duration(hours: 1);
 
-  // Critical business path: Offline synchronization / Drift cache
-  // - monitorFuture tracks overall synchronization time
-  // - The original _syncIfNeeded's catch block now handles captureException (warning, with cache as a fallback).
   Future<void> syncAllIfNeeded() async {
     await MonitoringService.monitorFuture<void>(
       name: 'Sync All If Needed',
       operation: 'offline.sync_all_if_needed',
       description: 'TTL based background sync',
       action: () async {
-        // Attraction must precede AudioGuide; AudioGuide's match depends on attraction data.
         await _syncIfNeeded(
           key: _attractionKey,
           ttl: _attractionTtl,
@@ -73,11 +71,13 @@ class AppSyncService {
       await db.syncMetaDao.saveLastSyncedAt(key);
     } catch (e, st) {
       AppLogger.error('[$key] sync failed', exception: e, stackTrace: st);
-      // Report to Sentry (warning, because there is an offline cache as a backup, it is not fatal)
+      // A warning, not an error
+      // will be triggered if the external API fails or if there is an offline cache fallback.
       await MonitoringService.captureException(
         e,
         stackTrace: st,
         operation: 'offline.sync',
+        level: SentryLevel.warning,
         extras: {
           'sync_key': key,
           'last_synced_at': lastSyncedAt?.toIso8601String(),
@@ -88,6 +88,7 @@ class AppSyncService {
 
   Future<void> _syncAttractions() async {
     final allRemote = await _fetchAllPages<AttractionModel, dynamic>(
+      debugName: 'attractions',
       fetch: (page) => attractionRemote.getAttractions(
         lang: ApiConstants.defaultLang,
         page: page,
@@ -110,6 +111,7 @@ class AppSyncService {
 
   Future<void> _syncAudioGuides() async {
     final allRemote = await _fetchAllPages<AudioGuideModel, dynamic>(
+      debugName: 'audioGuides',
       fetch: (page) => audioGuideRemote.getAudioGuides(
         lang: ApiConstants.defaultLang,
         page: page,
@@ -146,6 +148,7 @@ class AppSyncService {
 
   Future<void> _syncActivities() async {
     final allRemote = await _fetchAllPages<ActivityModel, dynamic>(
+      debugName: 'activities',
       fetch: (page) => activityRemote.getActivities(
         lang: ApiConstants.defaultLang,
         page: page,
@@ -168,14 +171,25 @@ class AppSyncService {
 
   Future<List<T>> _fetchAllPages<T, P>({
     required Future<P> Function(int page) fetch,
+    String debugName = '',
   }) async {
     final all = <T>[];
-    int page = 1;
-    while (true) {
+    var page = 1;
+    // Prevent API return errors from causing infinite loops
+    const maxPages = 100;
+    while (page <= maxPages) {
       final pageModel = await fetch(page);
       final data = (pageModel as dynamic).data as List;
+      final total = (pageModel as dynamic).total as int;
+      if (data.isEmpty) {
+        AppLogger.info('[$debugName] page $page: empty data, stop fetching');
+        break;
+      }
       all.addAll(data.cast<T>());
-      if (all.length >= (pageModel as dynamic).total) break;
+      AppLogger.info(
+        '[$debugName] page $page: ${data.length} items, total fetched: ${all.length}/$total',
+      );
+      if (all.length >= total) break;
       page++;
     }
     return all;
@@ -196,7 +210,6 @@ class AppSyncService {
     }
   }
 
-  /// Pull-to-refresh forces synchronization (ignores TTL)
   Future<void> forceSync(SyncTarget target) async {
     await MonitoringService.monitorFuture<void>(
       name: 'Force Sync ${target.name}',

@@ -34,13 +34,22 @@ class AttractionRemoteDataSource {
       if (response.statusCode == 204) {
         return AttractionPageModel(total: 0, page: page, data: const []);
       }
-      throw ServerException('取得遊憩景點列表失敗：${response.statusCode}');
+      throw ServerException(
+        '取得遊憩景點列表失敗：statusCode=${response.statusCode}, page=$page',
+      );
     } on DioException catch (e) {
+      AppLogger.error(
+        'Attraction API failed'
+        ' | statusCode=${e.response?.statusCode}'
+        ' | page=$page'
+        ' | message=${e.message}',
+        exception: e,
+        stackTrace: e.stackTrace,
+      );
       throw ServerException(e.message ?? '取得遊憩景點列表失敗');
     }
   }
 
-  // Obtain tourist attraction classification
   Future<List<AttractionCategoryModel>> getAttractionCategories({
     required String lang,
   }) async {
@@ -50,7 +59,6 @@ class AttractionRemoteDataSource {
       );
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data;
-        // API response formats may differ; perform security parsing.
         final rawList = switch (data) {
           {'data': final List list} => list,
           {'categories': final List list} => list,

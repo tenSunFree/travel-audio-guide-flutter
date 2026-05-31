@@ -4,17 +4,19 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 class MonitoringService {
   const MonitoringService._();
 
-  // Error reporting
   static Future<void> captureException(
     Object exception, {
     StackTrace? stackTrace,
     String? operation,
+    // Add a level, preset error, and a warning can be sent if background synchronization fails.
+    SentryLevel level = SentryLevel.error,
     Map<String, Object?> extras = const {},
   }) async {
     await Sentry.captureException(
       exception,
       stackTrace: stackTrace,
       withScope: (scope) {
+        scope.level = level;
         if (operation != null) {
           scope.setTag('operation', operation);
         }
@@ -25,7 +27,6 @@ class MonitoringService {
     );
   }
 
-  // Breadcrumbs
   static Future<void> addBreadcrumb({
     required String message,
     String category = 'app',
@@ -42,7 +43,6 @@ class MonitoringService {
     );
   }
 
-  // Performance Transaction
   static ISentrySpan startTransaction({
     required String name,
     required String operation,
@@ -56,8 +56,6 @@ class MonitoringService {
     );
   }
 
-  /// Convenience method: Performs an async job and automatically completes the transaction.
-  /// Success → SpanStatus.ok; Exception → captureException + SpanStatus.internalError.
   static Future<T> monitorFuture<T>({
     required String name,
     required String operation,
@@ -88,7 +86,6 @@ class MonitoringService {
     }
   }
 
-  // Debug-specific: Identifies test users
   static Future<void> identifyDebugUser() async {
     if (!kDebugMode) return;
     await Sentry.configureScope((scope) {
