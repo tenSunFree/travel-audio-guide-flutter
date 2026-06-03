@@ -6,6 +6,7 @@ import '../data/repositories/activity_repository_impl.dart';
 import '../domain/entities/activity.dart';
 import '../domain/repositories/activity_repository.dart';
 import '../domain/usecases/get_activities_usecase.dart';
+import '../presentation/controllers/activity_list_controller.dart';
 
 final activityRemoteDataSourceProvider = Provider<ActivityRemoteDataSource>(
   (ref) => ActivityRemoteDataSource(ref.watch(dioProvider)),
@@ -24,3 +25,8 @@ final getActivitiesUseCaseProvider = Provider<GetActivitiesUseCase>((ref) {
 final activitiesStreamProvider = StreamProvider<List<Activity>>((ref) {
   return ref.watch(appDatabaseProvider).activityDao.watchAll();
 });
+
+final activityListControllerProvider =
+    StateNotifierProvider<ActivityListController, ActivityListState>((ref) {
+      return ActivityListController(ref: ref);
+    });

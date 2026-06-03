@@ -6,7 +6,7 @@ import '../../../../core/sync/sync_providers.dart';
 import '../../domain/entities/activity.dart';
 import '../enums/activity_sort_filter_enums.dart';
 
-/// State
+// State
 class ActivityListState {
   const ActivityListState({
     required this.allItems,
@@ -38,41 +38,30 @@ class ActivityListState {
       statusFilter: ActivityStatusFilter.all,
       feeFilter: ActivityFeeFilter.all,
       distric: '',
-      // Initial value is true (waiting for the first sync result)
       isSyncing: true,
     );
   }
 
-  /// Raw data retrieved by the API (unfiltered, unsorted)
   final List<Activity> allItems;
-
-  /// A list that the UI can directly use after filtering and sorting.
   final List<Activity> items;
-
   final int currentPage;
   final int total;
   final bool hasMore;
   final bool isInitialLoading;
   final bool isLoadingMore;
   final String? errorMessage;
-
   final ActivitySortOrder sortOrder;
   final ActivityStatusFilter statusFilter;
   final ActivityFeeFilter feeFilter;
-
-  // '' = All
   final String distric;
+  final bool isSyncing;
 
-  final bool isSyncing; // Is background synchronization in progress
-
-  /// Whether it is the default state (used for AppBar red dot + summary bar highlighting)
   bool get isDefaultFilter =>
       sortOrder == ActivitySortOrder.beginAsc &&
       statusFilter == ActivityStatusFilter.all &&
       feeFilter == ActivityFeeFilter.all &&
       distric.isEmpty;
 
-  /// Dynamically extract administrative regions from allItems (for use by BottomSheet)
   List<String> get availableDistrics {
     final seen = <String>{};
     final result = <String>[];
@@ -93,10 +82,9 @@ class ActivityListState {
     String distric,
   ) {
     final now = DateTime.now();
-    const endingSoonDays = 7;
-    // 1. Filtering
+
     final filtered = rawItems.where((a) {
-      // Status Filtering
+      // Activity Status Filter
       if (status != ActivityStatusFilter.all) {
         DateTime? begin;
         DateTime? end;
@@ -106,16 +94,17 @@ class ActivityListState {
         } catch (_) {}
         final pass = switch (status) {
           ActivityStatusFilter.all => true,
+          // Now available: startTime <= now <= endTime
           ActivityStatusFilter.ongoing =>
             begin != null &&
                 end != null &&
-                now.isAfter(begin) &&
-                now.isBefore(end),
-          ActivityStatusFilter.upcoming => begin != null && begin.isAfter(now),
-          ActivityStatusFilter.endingSoon =>
-            end != null &&
-                end.isAfter(now) &&
-                end.difference(now).inDays <= endingSoonDays,
+                !now.isBefore(begin) &&
+                !now.isAfter(end),
+          // Coming soon: startTime > now and within 7 days
+          ActivityStatusFilter.upcoming =>
+            begin != null &&
+                begin.isAfter(now) &&
+                begin.isBefore(now.add(const Duration(days: 7))),
         };
         if (!pass) return false;
       }
@@ -129,7 +118,7 @@ class ActivityListState {
       if (distric.isNotEmpty && a.distric.trim() != distric) return false;
       return true;
     }).toList();
-    // 2. Sort
+    // Sort
     switch (sort) {
       case ActivitySortOrder.beginAsc:
         filtered.sort((a, b) => a.begin.compareTo(b.begin));
@@ -177,7 +166,7 @@ class ActivityListState {
   }
 }
 
-/// Controller
+// Controller
 class ActivityListController extends StateNotifier<ActivityListState> {
   ActivityListController({required this.ref})
     : super(ActivityListState.initial()) {
@@ -189,13 +178,11 @@ class ActivityListController extends StateNotifier<ActivityListState> {
 
   void _init() {
     _sub = ref.read(appDatabaseProvider).activityDao.watchAll().listen(_onData);
-
     Future.microtask(() async {
       try {
         await ref.read(appSyncServiceProvider).syncAllIfNeeded();
       } catch (_) {
       } finally {
-        // After syncing is complete (regardless of success or failure), close the skeleton screen.
         if (mounted) {
           state = state.copyWith(isLoadingMore: false);
         }
@@ -232,6 +219,7 @@ class ActivityListController extends StateNotifier<ActivityListState> {
 
   Future<void> loadMore() async {}
 
+  /// Apply filter to BottomSheet
   void applySortFilter({
     required ActivitySortOrder sortOrder,
     required ActivityStatusFilter statusFilter,
@@ -268,9 +256,3 @@ class ActivityListController extends StateNotifier<ActivityListState> {
     super.dispose();
   }
 }
-
-/// Provider
-final activityListControllerProvider =
-    StateNotifierProvider<ActivityListController, ActivityListState>((ref) {
-      return ActivityListController(ref: ref);
-    });

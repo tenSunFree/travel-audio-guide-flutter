@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../enums/activity_sort_filter_enums.dart';
 
-/// Return type: (Sort, Status filter, Cost filter, Administrative region)
-/// An empty string for administrative regions represents "all"
+/// Return type: (Sort, Status filter, Fee filter, Administrative region)
 typedef ActivityFilterResult = (
   ActivitySortOrder sortOrder,
   ActivityStatusFilter statusFilter,
@@ -24,8 +23,6 @@ class ActivitySortFilterBottomSheet extends StatefulWidget {
   final ActivityStatusFilter initialStatusFilter;
   final ActivityFeeFilter initialFeeFilter;
   final String initialDistric;
-
-  /// Extracts a list of administrative districts from the loaded data; an empty list will not display administrative district blocks.
   final List<String> availableDistrics;
 
   @override
@@ -96,37 +93,7 @@ class _ActivitySortFilterBottomSheetState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sort
-                  _SectionLabel(
-                    label: '排序',
-                    colorScheme: colorScheme,
-                    textTheme: textTheme,
-                  ),
-                  RadioGroup<ActivitySortOrder>(
-                    groupValue: _sortOrder,
-                    onChanged: (v) => setState(() => _sortOrder = v!),
-                    child: Column(
-                      children: ActivitySortOrder.values
-                          .map(
-                            (sort) => RadioListTile<ActivitySortOrder>(
-                              title: Text(sort.label),
-                              value: sort,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              dense: true,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                  const Divider(height: 24, indent: 16, endIndent: 16),
-                  // Status Filtering
-                  _SectionLabel(
-                    label: '狀態',
-                    colorScheme: colorScheme,
-                    textTheme: textTheme,
-                  ),
+                  _SectionLabel(label: '活動狀態'),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: Wrap(
@@ -145,22 +112,28 @@ class _ActivitySortFilterBottomSheetState
                     ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
-                  // Advanced Filtering
-                  _SectionLabel(
-                    label: '進階篩選',
-                    colorScheme: colorScheme,
-                    textTheme: textTheme,
+                  _SectionLabel(label: '排序'),
+                  Column(
+                    children: ActivitySortOrder.values
+                        .map(
+                          (sort) => RadioListTile<ActivitySortOrder>(
+                            title: Text(sort.label),
+                            value: sort,
+                            groupValue: _sortOrder,
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _sortOrder = v);
+                            },
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
-                  // cost
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    child: Text(
-                      '費用',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  _SectionLabel(label: '費用'),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: Wrap(
@@ -177,17 +150,9 @@ class _ActivitySortFilterBottomSheetState
                           .toList(),
                     ),
                   ),
-                  // Administrative region (only displayed if available)
+                  const Divider(height: 24, indent: 16, endIndent: 16),
                   if (widget.availableDistrics.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                      child: Text(
-                        '行政區',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+                    _SectionLabel(label: '行政區'),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Wrap(
@@ -215,7 +180,7 @@ class _ActivitySortFilterBottomSheetState
               ),
             ),
           ),
-          // Operation Buttons
+          // Bottom buttons
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -245,22 +210,17 @@ class _ActivitySortFilterBottomSheetState
   }
 }
 
-/// Section Title
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({
-    required this.label,
-    required this.colorScheme,
-    required this.textTheme,
-  });
+  const _SectionLabel({required this.label});
 
   final String label;
-  final ColorScheme colorScheme;
-  final TextTheme textTheme;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         label,
         style: textTheme.labelLarge?.copyWith(

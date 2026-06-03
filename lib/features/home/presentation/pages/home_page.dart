@@ -18,7 +18,27 @@ import '../widgets/recommend_list_tile.dart';
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
-  // Unified jump logic
+  // Tool: HomePeriod → timeSlot query value
+  static String _timeSlotValue(HomePeriod period) {
+    return switch (period) {
+      HomePeriod.morning => 'morning',
+      HomePeriod.afternoon => 'afternoon',
+      HomePeriod.evening => 'evening',
+      HomePeriod.night => 'night',
+    };
+  }
+
+  // Tools: HomePeriod → Show Title
+  static String _heroSectionTitle(HomePeriod period) {
+    return switch (period) {
+      HomePeriod.morning => '早上推薦',
+      HomePeriod.afternoon => '下午推薦',
+      HomePeriod.evening => '傍晚推薦',
+      HomePeriod.night => '夜間推薦',
+    };
+  }
+
+  // Open the attraction/activity details page
   void _openRecommendDetail(BuildContext context, HomeRecommendCard card) {
     switch (card.type) {
       case HomeRecommendType.attraction:
@@ -42,7 +62,6 @@ class HomePage extends ConsumerWidget {
           extra: activity,
         );
       case HomeRecommendType.audioGuide:
-        // There are currently no recommended audio guide cards on the homepage; these are reserved for future use.
         break;
     }
   }
@@ -107,12 +126,17 @@ class HomePage extends ConsumerWidget {
                 ),
               )
             else ...[
+              // Recommended time slots: View all → /attractions?timeSlot=xxx
               SliverToBoxAdapter(
                 child: HomeSectionTitle(
                   title: _heroSectionTitle(state.selectedPeriod),
                   action: '查看全部',
                   onActionTap: () {
-                    // Jump to the full list of attractions
+                    context.push(
+                      AppRoutes.attractionsPath(
+                        timeSlot: _timeSlotValue(state.selectedPeriod),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -132,8 +156,15 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              const SliverToBoxAdapter(
-                child: HomeSectionTitle(title: '現在可去', action: '排序'),
+              // You can now go to: View all → /attractions?openNow=true
+              SliverToBoxAdapter(
+                child: HomeSectionTitle(
+                  title: '現在可去',
+                  action: '查看全部',
+                  onActionTap: () {
+                    context.push(AppRoutes.attractionsPath(openNow: true));
+                  },
+                ),
               ),
               SliverList.builder(
                 itemCount: state.availableCards.length,
@@ -153,8 +184,17 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              const SliverToBoxAdapter(
-                child: HomeSectionTitle(title: '活動推薦', action: '全部'),
+              // Activity Recommendation: View All → /activities?activityStatus=ongoing
+              SliverToBoxAdapter(
+                child: HomeSectionTitle(
+                  title: '活動推薦',
+                  action: '查看全部',
+                  onActionTap: () {
+                    context.push(
+                      AppRoutes.activitiesPath(activityStatus: 'ongoing'),
+                    );
+                  },
+                ),
               ),
               SliverList.builder(
                 itemCount: state.activityCards.length,
@@ -179,14 +219,5 @@ class HomePage extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  static String _heroSectionTitle(HomePeriod period) {
-    return switch (period) {
-      HomePeriod.morning => '早晨推薦',
-      HomePeriod.afternoon => '午後推薦',
-      HomePeriod.evening => '傍晚推薦',
-      HomePeriod.night => '夜間推薦',
-    };
   }
 }

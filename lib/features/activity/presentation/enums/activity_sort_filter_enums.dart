@@ -13,30 +13,33 @@ enum ActivitySortOrder {
   };
 }
 
+/// Activity Status Filter
+/// ongoing → Available now (now between begin and end)
+/// upcoming → Coming soon (starting in 7 days)
 enum ActivityStatusFilter {
-  // All (Preset)
   all,
-  // in progress
   ongoing,
-  // Coming Soon
-  upcoming,
-  // Coming soon (within 7 days)
-  endingSoon;
+  upcoming;
 
   String get label => switch (this) {
-    ActivityStatusFilter.all => '全部',
-    ActivityStatusFilter.ongoing => '進行中',
+    ActivityStatusFilter.all => '全部活動',
+    ActivityStatusFilter.ongoing => '現在可參加',
     ActivityStatusFilter.upcoming => '即將開始',
-    ActivityStatusFilter.endingSoon => '即將結束',
   };
+
+  /// Convert the GoRouter query param string back to enum
+  static ActivityStatusFilter fromQuery(String? value) {
+    return switch (value) {
+      'ongoing' => ActivityStatusFilter.ongoing,
+      'upcoming' => ActivityStatusFilter.upcoming,
+      _ => ActivityStatusFilter.all,
+    };
+  }
 }
 
 enum ActivityFeeFilter {
-  // All (Preset)
   all,
-  // free
   free,
-  // Paid
   paid;
 
   String get label => switch (this) {

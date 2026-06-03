@@ -15,10 +15,40 @@ class AppRoutes {
   const AppRoutes._();
 
   static const home = '/';
+
+  // List page (with filter parameters)
+  static const attractions = '/attractions';
+  static const activities = '/activities';
+
+  // Details Page
   static const attractionDetail = '/attractions/:id';
   static const activityDetail = '/activities/:id';
   static const audioGuideDetail = '/audio-guides/:id';
   static const appLog = '/debug/log';
+
+  /// Path to the list of recreational attractions page (can include timeSlot/openNow filters)
+  static String attractionsPath({String? timeSlot, bool openNow = false}) {
+    final query = <String, String>{
+      if (timeSlot != null && timeSlot.isNotEmpty) 'timeSlot': timeSlot,
+      if (openNow) 'openNow': 'true',
+    };
+    return Uri(
+      path: attractions,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
+
+  /// Path to the event showcase list page (can include activityStatus filter)
+  static String activitiesPath({String? activityStatus}) {
+    final query = <String, String>{
+      if (activityStatus != null && activityStatus.isNotEmpty)
+        'activityStatus': activityStatus,
+    };
+    return Uri(
+      path: activities,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
 
   static String attractionDetailPath(int id) => '/attractions/$id';
 
@@ -32,10 +62,37 @@ final appRouter = GoRouter(
   debugLogDiagnostics: kDebugMode,
   observers: [SentryNavigatorObserver()],
   routes: [
+    // Homepage (Tab root page)
     GoRoute(
       path: AppRoutes.home,
       builder: (context, state) => const MainTabPage(),
     ),
+    // List of recreational attractions (jump to the link from the homepage with parameters)
+    // Note: Must be placed before /attractions/:id
+    GoRoute(
+      path: AppRoutes.attractions,
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return MainTabPage(
+          initialIndex: 3,
+          attractionInitialTimeSlot: query['timeSlot'],
+          attractionInitialOpenNow: query['openNow'] == 'true',
+        );
+      },
+    ),
+    // List of events and performances (jump to the link from the homepage with parameters)
+    // Note: Must be placed before /activities/:id
+    GoRoute(
+      path: AppRoutes.activities,
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return MainTabPage(
+          initialIndex: 2,
+          activityInitialStatus: query['activityStatus'],
+        );
+      },
+    ),
+    // Details Page
     GoRoute(
       path: AppRoutes.attractionDetail,
       builder: (context, state) => AttractionDetailLoader(

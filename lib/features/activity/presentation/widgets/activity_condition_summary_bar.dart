@@ -21,8 +21,17 @@ class ActivityConditionSummaryBar extends StatelessWidget {
   final VoidCallback onReset;
 
   String _buildLabel() {
-    final parts = <String>[sortOrder.label];
-    if (statusFilter != ActivityStatusFilter.all) parts.add(statusFilter.label);
+    final parts = <String>[];
+    // Activity status (shown first if not all activities are active)
+    if (statusFilter != ActivityStatusFilter.all) {
+      parts.add(statusFilter.label);
+    }
+    // Sort
+    if (sortOrder != ActivitySortOrder.beginAsc) {
+      parts.add(sortOrder.label);
+    } else {
+      parts.add('預設');
+    }
     if (feeFilter != ActivityFeeFilter.all) parts.add(feeFilter.label);
     if (distric.isNotEmpty) parts.add(distric);
     return parts.join('・');
@@ -48,6 +57,8 @@ class ActivityConditionSummaryBar extends StatelessWidget {
           Expanded(
             child: Text(
               _buildLabel(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
                 color: isNonDefault ? colorScheme.primary : AppColors.textHint,

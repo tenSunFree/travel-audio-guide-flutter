@@ -8,12 +8,25 @@ import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../core/widgets/common_app_bar.dart';
 import '../../di/attraction_providers.dart';
 import '../../domain/entities/attraction.dart';
+import '../controllers/attraction_list_controller.dart';
+import '../enums/attraction_sort_filter_enums.dart';
 import '../widgets/attraction_condition_summary_bar.dart';
 import '../widgets/attraction_sort_filter_bottom_sheet.dart';
 import '../widgets/attraction_tile.dart';
 
 class AttractionListPage extends ConsumerStatefulWidget {
-  const AttractionListPage({super.key});
+  const AttractionListPage({
+    super.key,
+    this.initialTimeSlot,
+    this.initialOpenNow = false,
+  });
+
+  /// Query value recommended from the homepage for different time periods
+  /// (morning/afternoon/evening/night)
+  final String? initialTimeSlot;
+
+  /// Filter from "Available Now" on the homepage
+  final bool initialOpenNow;
 
   @override
   ConsumerState<AttractionListPage> createState() => _AttractionListPageState();
@@ -26,6 +39,21 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    // Initial filtering on the homepage
+    // refs can only be stored and retrieved after the widget tree is fully built.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final timeSlot = AttractionTimeSlotFilter.fromQuery(
+        widget.initialTimeSlot,
+      );
+      if (widget.initialOpenNow || timeSlot != AttractionTimeSlotFilter.all) {
+        ref
+            .read(attractionListControllerProvider.notifier)
+            .applyHomeEntryFilter(
+              openNowOnly: widget.initialOpenNow,
+              timeSlotFilter: timeSlot,
+            );
+      }
+    });
   }
 
   void _onScroll() {
@@ -60,6 +88,8 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
         initialDistric: state.distric,
         initialTargets: state.selectedTargets,
         initialFacilities: state.selectedFacilities,
+        initialOpenNowOnly: state.openNowOnly,
+        initialTimeSlotFilter: state.timeSlotFilter,
         availableCategories: state.availableCategories,
         availableDistrics: state.availableDistrics,
       ),
@@ -73,6 +103,8 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
             distric: result.distric,
             targets: result.targets,
             facilities: result.facilities,
+            openNowOnly: result.openNowOnly,
+            timeSlotFilter: result.timeSlotFilter,
           );
     }
   }
@@ -170,16 +202,7 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
               state.items.isEmpty) {
             return Column(
               children: [
-                AttractionConditionSummaryBar(
-                  sortOrder: state.sortOrder,
-                  categoryIds: state.selectedCategoryIds,
-                  distric: state.distric,
-                  targets: state.selectedTargets,
-                  facilities: state.selectedFacilities,
-                  availableCategories: state.availableCategories,
-                  isNonDefault: isNonDefault,
-                  onReset: controller.resetSortFilter,
-                ),
+                _buildSummaryBar(state, controller),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: controller.refresh,
@@ -211,16 +234,7 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
             onRefresh: controller.refresh,
             child: Column(
               children: [
-                AttractionConditionSummaryBar(
-                  sortOrder: state.sortOrder,
-                  categoryIds: state.selectedCategoryIds,
-                  distric: state.distric,
-                  targets: state.selectedTargets,
-                  facilities: state.selectedFacilities,
-                  availableCategories: state.availableCategories,
-                  isNonDefault: isNonDefault,
-                  onReset: controller.resetSortFilter,
-                ),
+                _buildSummaryBar(state, controller),
                 Expanded(
                   child: ListView.separated(
                     key: ValueKey(
@@ -228,7 +242,9 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
                       '${state.selectedCategoryIds.join(",")}_'
                       '${state.distric}_'
                       '${state.selectedTargets.map((t) => t.name).join(",")}_'
-                      '${state.selectedFacilities.map((f) => f.name).join(",")}',
+                      '${state.selectedFacilities.map((f) => f.name).join(",")}_'
+                      '${state.openNowOnly}_'
+                      '${state.timeSlotFilter.name}',
                     ),
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -267,6 +283,24 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSummaryBar(
+    AttractionListState state,
+    AttractionListController controller,
+  ) {
+    return AttractionConditionSummaryBar(
+      sortOrder: state.sortOrder,
+      categoryIds: state.selectedCategoryIds,
+      distric: state.distric,
+      targets: state.selectedTargets,
+      facilities: state.selectedFacilities,
+      openNowOnly: state.openNowOnly,
+      timeSlotFilter: state.timeSlotFilter,
+      availableCategories: state.availableCategories,
+      isNonDefault: !state.isDefaultFilter,
+      onReset: controller.resetFilter,
     );
   }
 }

@@ -3,6 +3,9 @@ import '../../../../core/constants/app_colors.dart';
 import '../../domain/entities/attraction.dart';
 import '../enums/attraction_sort_filter_enums.dart';
 
+/// Top filter summary column of the recreation attractions page
+/// Displays the currently active criteria
+/// allowing users to clearly understand the conditions under which the list is filtered.
 class AttractionConditionSummaryBar extends StatelessWidget {
   const AttractionConditionSummaryBar({
     super.key,
@@ -11,6 +14,8 @@ class AttractionConditionSummaryBar extends StatelessWidget {
     required this.distric,
     required this.targets,
     required this.facilities,
+    required this.openNowOnly,
+    required this.timeSlotFilter,
     required this.availableCategories,
     required this.isNonDefault,
     required this.onReset,
@@ -21,13 +26,26 @@ class AttractionConditionSummaryBar extends StatelessWidget {
   final String distric;
   final Set<AttractionTargetFilter> targets;
   final Set<AttractionFacilityFilter> facilities;
+  final bool openNowOnly;
+  final AttractionTimeSlotFilter timeSlotFilter;
   final List<AttractionCategory> availableCategories;
   final bool isNonDefault;
   final VoidCallback onReset;
 
   String _buildLabel() {
-    final parts = <String>[sortOrder.label];
-    // Category name (reverse lookup from availableCategories: id → name)
+    final parts = <String>[];
+    // Prioritize displaying quick filters from the homepage
+    if (openNowOnly) parts.add('現在可去');
+    if (timeSlotFilter != AttractionTimeSlotFilter.all) {
+      parts.add(timeSlotFilter.label);
+    }
+    // Sort
+    if (sortOrder != AttractionSortOrder.apiOrder) {
+      parts.add(sortOrder.label);
+    } else {
+      parts.add('預設');
+    }
+    // Category name (lookup from id)
     final catNames = availableCategories
         .where((c) => categoryIds.contains(c.id))
         .map((c) => c.name);

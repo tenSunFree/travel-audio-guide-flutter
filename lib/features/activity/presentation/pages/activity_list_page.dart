@@ -6,14 +6,19 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../core/widgets/common_app_bar.dart';
+import '../../di/activity_providers.dart';
 import '../../domain/entities/activity.dart';
 import '../controllers/activity_list_controller.dart';
+import '../enums/activity_sort_filter_enums.dart';
 import '../widgets/activity_condition_summary_bar.dart';
 import '../widgets/activity_sort_filter_bottom_sheet.dart';
 import '../widgets/activity_tile.dart';
 
 class ActivityListPage extends ConsumerStatefulWidget {
-  const ActivityListPage({super.key});
+  const ActivityListPage({super.key, this.initialStatus});
+
+  /// Query value (ongoing/upcoming) from the "Event Recommendations" section on the homepage
+  final String? initialStatus;
 
   @override
   ConsumerState<ActivityListPage> createState() => _ActivityListPageState();
@@ -26,6 +31,20 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    // Initial filter brought in on the homepage
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final status = ActivityStatusFilter.fromQuery(widget.initialStatus);
+      if (status != ActivityStatusFilter.all) {
+        ref
+            .read(activityListControllerProvider.notifier)
+            .applySortFilter(
+              sortOrder: ActivitySortOrder.beginAsc,
+              statusFilter: status,
+              feeFilter: ActivityFeeFilter.all,
+              distric: '',
+            );
+      }
+    });
   }
 
   void _onScroll() {
@@ -165,14 +184,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
               state.items.isEmpty) {
             return Column(
               children: [
-                ActivityConditionSummaryBar(
-                  sortOrder: state.sortOrder,
-                  statusFilter: state.statusFilter,
-                  feeFilter: state.feeFilter,
-                  distric: state.distric,
-                  isNonDefault: isNonDefault,
-                  onReset: controller.resetSortFilter,
-                ),
+                _buildSummaryBar(state, controller),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: controller.loadInitial,
@@ -192,14 +204,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
             onRefresh: controller.loadInitial,
             child: Column(
               children: [
-                ActivityConditionSummaryBar(
-                  sortOrder: state.sortOrder,
-                  statusFilter: state.statusFilter,
-                  feeFilter: state.feeFilter,
-                  distric: state.distric,
-                  isNonDefault: isNonDefault,
-                  onReset: controller.resetSortFilter,
-                ),
+                _buildSummaryBar(state, controller),
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
@@ -247,6 +252,20 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSummaryBar(
+    ActivityListState state,
+    ActivityListController controller,
+  ) {
+    return ActivityConditionSummaryBar(
+      sortOrder: state.sortOrder,
+      statusFilter: state.statusFilter,
+      feeFilter: state.feeFilter,
+      distric: state.distric,
+      isNonDefault: !state.isDefaultFilter,
+      onReset: controller.resetSortFilter,
     );
   }
 }

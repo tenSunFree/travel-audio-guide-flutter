@@ -8,29 +8,62 @@ import '../../../audio_guide/presentation/pages/audio_guide_list_page.dart';
 import '../../../reminder/presentation/pages/my_journey_page.dart';
 import 'home_page.dart';
 
+/// MainTabPage accepts initial filter values from GoRouter query params.
+/// - After clicking "View All" on the homepage, GoRouter pushes a new route with the query,
+/// The corresponding builder creates a MainTabPage with initial parameters.
+/// - Normal entry points (homepage tabs) use the default builder without any initial filter.
 class MainTabPage extends StatefulWidget {
-  const MainTabPage({super.key});
+  const MainTabPage({
+    super.key,
+    this.initialIndex = 0,
+    this.attractionInitialTimeSlot,
+    this.attractionInitialOpenNow = false,
+    this.activityInitialStatus,
+  });
+
+  /// Preset which tab to display
+  /// (0=Home, 2=Events & Performances, 3=Recreational Attractions)
+  final int initialIndex;
+
+  /// Initial time slot filtering for recreational attractions
+  /// (query value: morning/afternoon/evening/night)
+  final String? attractionInitialTimeSlot;
+
+  /// Initial "Available Now" filter for recreational attractions
+  final bool attractionInitialOpenNow;
+
+  /// Initial status filtering for event presentations
+  /// (query value: ongoing/upcoming)
+  final String? activityInitialStatus;
 
   @override
   State<MainTabPage> createState() => _MainTabPageState();
 }
 
 class _MainTabPageState extends State<MainTabPage> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
-  // IndexedStack retains the state of each page (scroll position, loaded data), and switching tabs will not restructure it.
-  static const List<Widget> _pages = [
-    HomePage(),
-    AudioGuideListPage(),
-    ActivityListPage(),
-    AttractionListPage(),
-    MyJourneyPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Dynamic pages: Pass the initial filter parameters from the homepage to the list page
+    final pages = [
+      const HomePage(),
+      const AudioGuideListPage(),
+      ActivityListPage(initialStatus: widget.activityInitialStatus),
+      AttractionListPage(
+        initialTimeSlot: widget.attractionInitialTimeSlot,
+        initialOpenNow: widget.attractionInitialOpenNow,
+      ),
+      const MyJourneyPage(),
+    ];
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: IndexedStack(index: _currentIndex, children: pages),
       floatingActionButton: kDebugMode
           ? FloatingActionButton(
               heroTag: 'debug_log',

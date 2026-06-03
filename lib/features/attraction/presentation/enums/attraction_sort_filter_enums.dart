@@ -12,8 +12,42 @@ enum AttractionSortOrder {
   };
 }
 
+enum AttractionTimeSlotFilter {
+  all,
+  morning,
+  afternoon,
+  evening,
+  night;
+
+  String get label => switch (this) {
+    AttractionTimeSlotFilter.all => '全部',
+    AttractionTimeSlotFilter.morning => '早上推薦',
+    AttractionTimeSlotFilter.afternoon => '下午推薦',
+    AttractionTimeSlotFilter.evening => '傍晚推薦',
+    AttractionTimeSlotFilter.night => '夜間推薦',
+  };
+
+  String get queryValue => switch (this) {
+    AttractionTimeSlotFilter.all => 'all',
+    AttractionTimeSlotFilter.morning => 'morning',
+    AttractionTimeSlotFilter.afternoon => 'afternoon',
+    AttractionTimeSlotFilter.evening => 'evening',
+    AttractionTimeSlotFilter.night => 'night',
+  };
+
+  /// Convert the query param string back to an enum (if not found, return all).
+  static AttractionTimeSlotFilter fromQuery(String? value) {
+    return switch (value) {
+      'morning' => AttractionTimeSlotFilter.morning,
+      'afternoon' => AttractionTimeSlotFilter.afternoon,
+      'evening' => AttractionTimeSlotFilter.evening,
+      'night' => AttractionTimeSlotFilter.night,
+      _ => AttractionTimeSlotFilter.all,
+    };
+  }
+}
+
 // Suitable groups (corresponding to the id of API target[])
-// Actual API return: 66=Hikers, 61=Parent-child learning, 62=After-school education, 63=Cyclists, 65=Birdwatchers
 enum AttractionTargetFilter {
   hiker(66, '健行族'),
   familyLearning(61, '親子共學'),
@@ -28,9 +62,6 @@ enum AttractionTargetFilter {
 }
 
 // Friendly Facilities (corresponding to the id of API friendly[])
-// 387=English friendly, 390=Mobile device charging, 391=Pet friendly, 392=Accessibility friendly services,
-// 393=Gender friendly, 394=Credit card/EasyCard/Third-party payment services, 395=Vegetarian friendly,
-// 396=Friendly toilets, 398=WiFi friendly, 399=Bicycle friendly, 400=Breastfeeding friendly
 enum AttractionFacilityFilter {
   accessible(392, '♿ 無障礙'),
   wifi(398, '📶 WiFi'),

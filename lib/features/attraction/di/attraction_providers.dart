@@ -33,6 +33,5 @@ final attractionListControllerProvider =
 final attractionsStreamProvider = StreamProvider<List<Attraction>>((ref) {
   // Background synchronization, does not obstruct UI
   Future.microtask(() => ref.read(appSyncServiceProvider).syncAllIfNeeded());
-
   return ref.watch(appDatabaseProvider).attractionDao.watchAll();
 });
