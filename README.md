@@ -38,12 +38,14 @@ This project is for learning and technical practice.
 </p> 
 <p align="left">
   <img src="https://i.postimg.cc/J0hjBxjq/Screenshot-20260506-014016.png" width="160"/>
+  <img src="https://i.postimg.cc/MTyvdBRR/Screenshot-20260603-233535.png" width="160"/>
   <img src="https://i.postimg.cc/3w8WGKTT/2.png" width="160"/>
   <img src="https://i.postimg.cc/YSd0fJpV/3.png" width="160"/>
   <img src="https://i.postimg.cc/QM8V7X3r/4.png" width="160"/>
 </p> 
 <p align="left">
   <img src="https://i.postimg.cc/zvfTR7T0/Screenshot-20260506-014013.png" width="160"/>
+  <img src="https://i.postimg.cc/CLdwKD1R/Screenshot-20260603-233849.png" width="160"/>
   <img src="https://i.postimg.cc/5Ns3cK1B/368412.jpg" width="160"/>
   <img src="https://i.postimg.cc/2y2Hksq4/Screenshot-20260512-214810.png" width="160"/>
 </p> 
@@ -59,6 +61,7 @@ This project is for learning and technical practice.
 ### Travel Content
 
 - Browse attractions, audio guides, and activities from the Taipei Travel Open API
+- Home page displays time-based recommendations, currently open attractions, and ongoing activities with direct navigation to filtered list views
 - View attraction and activity detail pages with HTML description rendering
 - Display activity metadata including event period, organizer, venue, ticket information, and related links
 - Tap venue phone numbers to launch the native dialer
@@ -90,6 +93,9 @@ This project is for learning and technical practice.
 ### Filtering and UX
 
 - Sort and filter bottom sheets for attractions, audio guides, and activities
+- Attraction list supports open status filter (currently open) and time slot recommendation filter (morning / afternoon / evening / night)
+- Activity list supports activity status filter (all / currently available / coming soon within 7 days)
+- Home section action buttons navigate directly to filtered list pages with query parameters
 - Active filter summary bars showing current filter conditions
 - Consistent loading, empty state, and error state handling across all list pages
 
