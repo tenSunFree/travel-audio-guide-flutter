@@ -136,45 +136,43 @@ class _AttractionSortFilterBottomSheetState
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
                   _SectionLabel(label: '推薦時段'),
-                  Column(
-                    children: AttractionTimeSlotFilter.values
-                        .map(
-                          (slot) => RadioListTile<AttractionTimeSlotFilter>(
-                            title: Text(slot.label),
-                            value: slot,
-                            groupValue: _timeSlotFilter,
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() => _timeSlotFilter = v);
-                            },
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                  RadioGroup<AttractionTimeSlotFilter>(
+                    groupValue: _timeSlotFilter,
+                    onChanged: (v) => setState(() => _timeSlotFilter = v!),
+                    child: Column(
+                      children: AttractionTimeSlotFilter.values
+                          .map(
+                            (slot) => RadioListTile<AttractionTimeSlotFilter>(
+                              title: Text(slot.label),
+                              value: slot,
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
                   _SectionLabel(label: '排序'),
-                  Column(
-                    children: AttractionSortOrder.values
-                        .map(
-                          (sort) => RadioListTile<AttractionSortOrder>(
-                            title: Text(sort.label),
-                            value: sort,
-                            groupValue: _sortOrder,
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() => _sortOrder = v);
-                            },
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                  RadioGroup<AttractionSortOrder>(
+                    groupValue: _sortOrder,
+                    onChanged: (v) => setState(() => _sortOrder = v!),
+                    child: Column(
+                      children: AttractionSortOrder.values
+                          .map(
+                            (sort) => RadioListTile<AttractionSortOrder>(
+                              title: Text(sort.label),
+                              value: sort,
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
                   if (widget.availableCategories.isNotEmpty) ...[

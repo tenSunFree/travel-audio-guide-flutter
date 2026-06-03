@@ -113,24 +113,23 @@ class _ActivitySortFilterBottomSheetState
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
                   _SectionLabel(label: '排序'),
-                  Column(
-                    children: ActivitySortOrder.values
-                        .map(
-                          (sort) => RadioListTile<ActivitySortOrder>(
-                            title: Text(sort.label),
-                            value: sort,
-                            groupValue: _sortOrder,
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() => _sortOrder = v);
-                            },
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                  RadioGroup<ActivitySortOrder>(
+                    groupValue: _sortOrder,
+                    onChanged: (v) => setState(() => _sortOrder = v!),
+                    child: Column(
+                      children: ActivitySortOrder.values
+                          .map(
+                            (sort) => RadioListTile<ActivitySortOrder>(
+                              title: Text(sort.label),
+                              value: sort,
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
                   _SectionLabel(label: '費用'),
