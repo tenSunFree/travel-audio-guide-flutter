@@ -49,3 +49,8 @@ app.*.map.json
 # dev.json release.json contains the real key and is not included in Git
 env/dev.json
 env/release.json
+
+# Firebase config - public repo, Submitting is not recommended
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart

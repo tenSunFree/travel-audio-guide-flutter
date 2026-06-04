@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,9 +7,11 @@ import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 import 'app.dart';
 import 'core/monitoring/monitoring_service.dart';
 import 'core/utils/app_logger.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await SentryFlutter.init(
     (options) {
       // flutter run --dart-define-from-file=env/dev.json
