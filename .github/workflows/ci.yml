@@ -42,14 +42,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Restore Firebase options
+      - name: Restore Firebase config files
         run: |
           if [ -z "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" ]; then
             echo "Missing FIREBASE_OPTIONS_DART_BASE64 secret"
             exit 1
           fi
 
+          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "Missing GOOGLE_SERVICES_JSON_BASE64 secret"
+            exit 1
+          fi
+
           printf '%s' "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" | base64 --decode > lib/firebase_options.dart
+          printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
 
       - name: Check Dart format
         run: dart format --output=none --set-exit-if-changed lib test pigeons
