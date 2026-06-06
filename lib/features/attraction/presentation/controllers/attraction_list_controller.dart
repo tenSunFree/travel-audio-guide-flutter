@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/sync/app_sync_service.dart';
 import '../../../../core/sync/sync_providers.dart';
@@ -46,14 +47,9 @@ class AttractionListState {
   final double? userLat;
   final double? userLng;
   final bool? isSyncing;
-
-  /// Only view currently available options
   final bool openNowOnly;
-
-  /// Recommended time slot
   final AttractionTimeSlotFilter timeSlotFilter;
 
-  // Whether it is the default state (used for AppBar red dot + SummaryBar highlight)
   bool get isDefaultFilter =>
       !openNowOnly &&
       timeSlotFilter == AttractionTimeSlotFilter.all &&
@@ -63,7 +59,6 @@ class AttractionListState {
       selectedTargets.isEmpty &&
       selectedFacilities.isEmpty;
 
-  // Dynamically collect administrative districts from allItems
   List<String> get availableDistrics {
     final result =
         allItems
@@ -75,7 +70,6 @@ class AttractionListState {
     return result;
   }
 
-  // Dynamically collect categories from allItems
   List<AttractionCategory> get availableCategories {
     final seen = <int>{};
     final result = <AttractionCategory>[];
@@ -89,7 +83,6 @@ class AttractionListState {
     return result;
   }
 
-  // Core: Filtering + Sorting
   static List<Attraction> computeDisplayItems(
     List<Attraction> source, {
     required AttractionSortOrder sortOrder,
@@ -105,32 +98,25 @@ class AttractionListState {
     final now = DateTime.now();
     const parser = OpenTimeParser();
     final filtered = source.where((item) {
-      // Available Now: Is it open at this moment
       if (openNowOnly) {
         final result = parser.parse(item.openTime, now);
         if (!result.isOpenNow) return false;
       }
-      // Recommended time slot
-      // Suitable for this time slot + This time slot indicates that the area is open.
       if (timeSlotFilter != AttractionTimeSlotFilter.all) {
         if (!_isRecommendedForTimeSlot(item, timeSlotFilter)) return false;
         if (!_isOpenDuringTimeSlot(item.openTime, timeSlotFilter)) return false;
       }
-      // Category Filtering
       if (selectedCategoryIds.isNotEmpty) {
         final itemCatIds = item.categories.map((c) => c.id).toSet();
         if (!selectedCategoryIds.any(itemCatIds.contains)) return false;
       }
-      // Administrative District Filtering
       if (distric.isNotEmpty && item.distric.trim() != distric) return false;
-      // Suitable for ethnic groups
       if (selectedTargets.isNotEmpty) {
         final itemTargetIds = item.targets.map((t) => t.id).toSet();
         if (!selectedTargets.any((f) => itemTargetIds.contains(f.apiId))) {
           return false;
         }
       }
-      // Friendly facilities
       if (selectedFacilities.isNotEmpty) {
         final itemFriendlyIds = item.friendlies.map((f) => f.id).toSet();
         if (!selectedFacilities.any((f) => itemFriendlyIds.contains(f.apiId))) {
@@ -139,7 +125,6 @@ class AttractionListState {
       }
       return true;
     }).toList();
-    // Sort
     switch (sortOrder) {
       case AttractionSortOrder.apiOrder:
         break;
@@ -159,8 +144,6 @@ class AttractionListState {
     return filtered;
   }
 
-  // Time-of-day recommendation judgment
-  // (attraction name + category + descriptive keywords)
   static bool _isRecommendedForTimeSlot(
     Attraction item,
     AttractionTimeSlotFilter slot,
@@ -201,7 +184,6 @@ class AttractionListState {
     };
   }
 
-  // Time period indicates whether the area is open at a given time.
   static bool _isOpenDuringTimeSlot(
     String openTime,
     AttractionTimeSlotFilter slot,
@@ -373,6 +355,14 @@ class AttractionListController extends StateNotifier<AttractionListState> {
   }) {
     final nextOpenNow = openNowOnly ?? state.openNowOnly;
     final nextSlot = timeSlotFilter ?? state.timeSlotFilter;
+    // Tracking: Scenic Spot Filtering Criteria
+    AnalyticsService.logAttractionFiltered(
+      sortOrder: sortOrder.name,
+      openNow: nextOpenNow,
+      timeSlot: nextSlot.name,
+      categoryCount: categoryIds.length,
+      district: distric,
+    );
     state = state.copyWith(
       sortOrder: sortOrder,
       selectedCategoryIds: categoryIds,
@@ -397,7 +387,6 @@ class AttractionListController extends StateNotifier<AttractionListState> {
   }
 
   /// When the homepage entry point brings parameters
-  /// only openNow and timeSlot are set; the rest remain as default.
   void applyHomeEntryFilter({
     bool openNowOnly = false,
     AttractionTimeSlotFilter timeSlotFilter = AttractionTimeSlotFilter.all,

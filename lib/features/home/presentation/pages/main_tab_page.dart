@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../activity/presentation/pages/activity_list_page.dart';
 import '../../../attraction/presentation/pages/attraction_list_page.dart';
@@ -22,7 +23,7 @@ class MainTabPage extends StatefulWidget {
   });
 
   /// Preset which tab to display
-  /// (0=Home, 2=Events & Performances, 3=Recreational Attractions)
+  /// (0=Home, 1=AudioGuide, 2=Events & Performances, 3=Recreational Attractions, 4=MyJourney)
   final int initialIndex;
 
   /// Initial time slot filtering for recreational attractions
@@ -47,6 +48,8 @@ class _MainTabPageState extends State<MainTabPage> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    // Tracking: Records the first tab entered
+    AnalyticsService.logTabSelected(_currentIndex);
   }
 
   @override
@@ -75,6 +78,10 @@ class _MainTabPageState extends State<MainTabPage> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
+          // Avoid duplicate records
+          if (index == _currentIndex) return;
+          // Tracking: Tab toggle
+          AnalyticsService.logTabSelected(index);
           setState(() => _currentIndex = index);
         },
         destinations: const [

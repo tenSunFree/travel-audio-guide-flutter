@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/monitoring/monitoring_service.dart';
 import '../../../../core/sync/app_sync_service.dart';
@@ -9,7 +10,6 @@ import '../../domain/entities/audio_guide.dart';
 import '../../domain/usecases/download_audio_guide_usecase.dart';
 import '../enums/sort_filter_enums.dart';
 
-// State
 class AudioGuideListState {
   const AudioGuideListState({
     required this.allItems,
@@ -119,7 +119,6 @@ class AudioGuideListState {
   }
 }
 
-// Controller
 class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   AudioGuideListController({
     required this.ref,
@@ -181,6 +180,11 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   Future<void> loadMore() async {}
 
   void applySortFilter(SortOrder sort, FilterType filter) {
+    // Tracking: User-applied filters
+    AnalyticsService.logAudioGuideFiltered(
+      sortOrder: sort.name,
+      filterType: filter.name,
+    );
     state = state.copyWith(
       sortOrder: sort,
       filterType: filter,
@@ -215,6 +219,11 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
         'url': guide.url,
       },
     );
+    // Tracking: Download starts
+    await AnalyticsService.logAudioGuideDownloadStart(
+      id: guide.id,
+      title: guide.title,
+    );
     try {
       // performance transaction：audio.download
       final localPath = await MonitoringService.monitorFuture<String>(
@@ -239,12 +248,13 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
         category: 'audio.download',
         data: {'guide_id': guide.id, 'local_path': localPath},
       );
+      // Tracking: Download successful
+      await AnalyticsService.logAudioGuideDownloadSuccess(
+        id: guide.id,
+        title: guide.title,
+      );
       return null;
     } catch (e, stackTrace) {
-      // Report to Sentry (already reported internally by monitorFuture, this is an additional context to report again)
-      // Note: monitorFuture has already rethrown, so captureException here is for supplementary explanation.
-      // In fact, monitorFuture also calls captureException internally.
-      // If you don't want to repeat this, you can remove this part and only keep return e.toString().
       await MonitoringService.captureException(
         e,
         stackTrace: stackTrace,
@@ -254,6 +264,12 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
           'guide_title': guide.title,
           'url': guide.url,
         },
+      );
+      // Tracking: Download failed
+      await AnalyticsService.logAudioGuideDownloadFailure(
+        id: guide.id,
+        title: guide.title,
+        error: e.toString(),
       );
       return e.toString();
     } finally {

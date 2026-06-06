@@ -16,6 +16,8 @@ class DetailActionButtons extends StatefulWidget {
     this.reminderLabel = '設定提醒',
     this.onCalendarPressed,
     this.calendarLabel = '行事曆',
+    this.onSharePressed,
+    this.onNavigatePressed,
   });
 
   final String navigateName;
@@ -27,6 +29,12 @@ class DetailActionButtons extends StatefulWidget {
   final String reminderLabel;
   final VoidCallback? onCalendarPressed;
   final String calendarLabel;
+
+  /// Callback after sharing (for Analytics tracking)
+  final VoidCallback? onSharePressed;
+
+  /// Callback triggered by navigation (used for Analytics tracking)
+  final VoidCallback? onNavigatePressed;
 
   @override
   State<DetailActionButtons> createState() => _DetailActionButtonsState();
@@ -45,6 +53,8 @@ class _DetailActionButtonsState extends State<DetailActionButtons> {
         lat: widget.navigateLat,
         lng: widget.navigateLng,
       );
+      // Notify external systems (for tracking) after successful navigation startup.
+      widget.onNavigatePressed?.call();
     } finally {
       if (mounted) setState(() => _navigating = false);
     }
@@ -52,6 +62,8 @@ class _DetailActionButtonsState extends State<DetailActionButtons> {
 
   Future<void> _onShare() async {
     await SharePlus.instance.share(ShareParams(text: widget.shareText));
+    // Share sheet and notify external parties after closing (for tracking purposes)
+    widget.onSharePressed?.call();
   }
 
   @override

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../domain/entities/activity.dart';
@@ -17,15 +18,12 @@ class ActivityDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
-  // First, temporarily save the page; the official version will then integrate Drift.
   bool _isFavorite = false;
 
   Activity get activity => widget.activity;
 
   static const String _siteBaseUrl = 'https://www.travel.taipei';
 
-  // Assemble the scheduling data for this page
-  // (_parseDate is already defined in the page and can be reused directly)
   DetailScheduleItem get _scheduleItem => DetailScheduleItem(
     sourceType: 'activity',
     sourceId: activity.id.toString(),
@@ -42,10 +40,17 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     allDay: true,
   );
 
-  Future<void> _addToCalendar() => DetailScheduleActions.addToCalendar(
-    context: context,
-    item: _scheduleItem,
-  );
+  Future<void> _addToCalendar() async {
+    await DetailScheduleActions.addToCalendar(
+      context: context,
+      item: _scheduleItem,
+    );
+    // Tracking: Records after calendar operations are completed
+    await AnalyticsService.logActivityAddedToCalendar(
+      id: activity.id,
+      title: activity.title,
+    );
+  }
 
   Future<void> _addReminder() => DetailScheduleActions.addReminder(
     context: context,
@@ -53,8 +58,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     item: _scheduleItem,
   );
 
-  /// Date utility
-  /// "2026-03-26 00:00:00 +08:00" → DateTime, returns null on failure
   static DateTime? _parseDate(String raw) {
     if (raw.trim().isEmpty) return null;
     try {
@@ -64,20 +67,16 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     }
   }
 
-  /// "2026-03-26 00:00:00 +08:00" → "2026/03/26"
   static String _formatDate(String raw) {
     if (raw.isEmpty) return '';
     try {
       final dt = DateTime.parse(raw);
-      return '${dt.year}/'
-          '${dt.month.toString().padLeft(2, '0')}/'
-          '${dt.day.toString().padLeft(2, '0')}';
+      return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw.split(' ').first;
     }
   }
 
-  /// URL tools
   static String _toAbsoluteUrl(String url) {
     final t = url.trim();
     if (t.isEmpty) return t;
@@ -87,38 +86,27 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
     return '$_siteBaseUrl/$t';
   }
 
-  // HTML preprocessing
-  // Simultaneously correct the relative paths of <img src> and <a href>,
-  // To prevent images from failing to display and links from becoming unclickable.
   static String _normalizeHtml(String html) {
     if (html.isEmpty) return html;
-    // Correct src="..." or src='...'
     var result = html.replaceAllMapped(
       RegExp("\\bsrc=([\"'])([^\"']+)\\1", caseSensitive: false),
-      (m) {
-        final quote = m.group(1)!;
-        final url = m.group(2)!;
-        return 'src=$quote${_toAbsoluteUrl(url)}$quote';
-      },
+      (m) => 'src=${m.group(1)}${_toAbsoluteUrl(m.group(2)!)}${m.group(1)}',
     );
-    // Correct href="..." or href='...'
     result = result.replaceAllMapped(
       RegExp("\\bhref=([\"'])([^\"']+)\\1", caseSensitive: false),
       (m) {
-        final quote = m.group(1)!;
         final url = m.group(2)!;
         if (url.startsWith('#') ||
             url.startsWith('mailto:') ||
             url.startsWith('tel:')) {
           return m.group(0)!;
         }
-        return 'href=$quote${_toAbsoluteUrl(url)}$quote';
+        return 'href=${m.group(1)}${_toAbsoluteUrl(url)}${m.group(1)}';
       },
     );
     return result;
   }
 
-  // The activity coordinates are of type String and need to be converted.
   static double? _parseCoord(String value) {
     final v = double.tryParse(value.trim());
     return (v == null || v == 0.0) ? null : v;
@@ -169,11 +157,17 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Tracking: User enters the event details page
+    AnalyticsService.logActivityViewed(id: activity.id, title: activity.title);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final beginStr = _formatDate(activity.begin);
     final endStr = _formatDate(activity.end);
     final normalizedDescription = _normalizeHtml(activity.description);
-    // Meta information column, only display columns with values.
     final infoRows = <_InfoRowData>[
       if (beginStr.isNotEmpty || endStr.isNotEmpty)
         _InfoRowData(
@@ -215,7 +209,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: false,
-        // Collect hearts
         actions: [
           IconButton(
             tooltip: _isFavorite ? '取消收藏' : '加入收藏',
@@ -270,7 +263,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
                 ),
               ),
             const SizedBox(height: 16),
-            // Calendar + Share side by side (below meta tag, above body text)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -284,13 +276,26 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
                   shareLabel: '分享活動',
                   onReminderPressed: _addReminder,
                   onCalendarPressed: _addToCalendar,
+                  // Tracking: Sharing (recalled by DetailActionButtons after SharePlus completes)
+                  onSharePressed: () => AnalyticsService.logActivityShared(
+                    id: activity.id,
+                    title: activity.title,
+                  ),
+                  // Tracking: Navigation (called back by DetailActionButtons after navigation is initiated)
+                  onNavigatePressed: () =>
+                      AnalyticsService.logNavigationRequested(
+                        id: activity.id,
+                        name: activity.address.isNotEmpty
+                            ? activity.address
+                            : activity.title,
+                        sourceType: 'activity',
+                      ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
             const Divider(color: AppColors.divider),
             const SizedBox(height: 16),
-            // Event Introduction (HTML Rendering)
             const Text(
               '活動介紹',
               style: TextStyle(
@@ -308,7 +313,6 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
                 color: AppColors.textPrimary,
               ),
             ),
-            // Related Links
             if (activity.links.isNotEmpty) ...[
               const SizedBox(height: 24),
               const Divider(color: AppColors.divider),

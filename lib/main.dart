@@ -11,6 +11,7 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Firebase must be initialized before Sentry.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await SentryFlutter.init(
     (options) {

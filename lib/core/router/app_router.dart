@@ -5,6 +5,7 @@ import '../../features/activity/domain/entities/activity.dart';
 import '../../features/attraction/domain/entities/attraction.dart';
 import '../../features/audio_guide/domain/entities/audio_guide.dart';
 import '../../features/home/presentation/pages/main_tab_page.dart';
+import '../analytics/analytics_service.dart';
 import '../utils/app_log_page.dart';
 import '../widgets/route_error_page.dart';
 import 'loaders/activity_detail_loader.dart';
@@ -60,7 +61,7 @@ class AppRoutes {
 final appRouter = GoRouter(
   initialLocation: AppRoutes.home,
   debugLogDiagnostics: kDebugMode,
-  observers: [SentryNavigatorObserver()],
+  observers: [SentryNavigatorObserver(), AnalyticsService.observer],
   routes: [
     // Homepage (Tab root page)
     GoRoute(

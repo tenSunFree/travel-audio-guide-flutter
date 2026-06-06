@@ -1,14 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../domain/entities/attraction.dart';
 import '../../../../core/widgets/detail_action_buttons.dart';
 
-class AttractionDetailPage extends ConsumerWidget {
+class AttractionDetailPage extends ConsumerStatefulWidget {
   const AttractionDetailPage({super.key, required this.attraction});
 
   final Attraction attraction;
+
+  @override
+  ConsumerState<AttractionDetailPage> createState() =>
+      _AttractionDetailPageState();
+}
+
+class _AttractionDetailPageState extends ConsumerState<AttractionDetailPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Tracking: User enters attraction details page
+    AnalyticsService.logAttractionViewed(
+      id: widget.attraction.id,
+      name: widget.attraction.name,
+    );
+  }
 
   static String _buildAttractionShareText(Attraction attraction) {
     return [
@@ -20,7 +37,8 @@ class AttractionDetailPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final attraction = widget.attraction;
     // Assembly scheduling data
     final scheduleItem = DetailScheduleItem(
       sourceType: 'attraction',
@@ -110,6 +128,18 @@ class AttractionDetailPage extends ConsumerWidget {
                     context: context,
                     item: scheduleItem,
                   ),
+                  // Tracking: Sharing attractions
+                  onSharePressed: () => AnalyticsService.logAttractionShared(
+                    id: attraction.id,
+                    name: attraction.name,
+                  ),
+                  // Tracking: Navigation
+                  onNavigatePressed: () =>
+                      AnalyticsService.logNavigationRequested(
+                        id: attraction.id,
+                        name: attraction.name,
+                        sourceType: 'attraction',
+                      ),
                 ),
                 const SizedBox(height: 20),
                 const Divider(color: AppColors.divider),
@@ -155,12 +185,9 @@ class AttractionDetailPage extends ConsumerWidget {
                 ],
                 // Source
                 const SizedBox(height: 24),
-                Text(
+                const Text(
                   '資料來源：台北旅遊網',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textHint,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textHint),
                 ),
                 if (attraction.modified.isNotEmpty)
                   Text(
@@ -251,7 +278,6 @@ class _ImageSectionState extends State<_ImageSection> {
   }
 }
 
-// Reusable Widgets
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.icon, required this.text});
 

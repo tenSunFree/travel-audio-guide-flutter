@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../attraction/di/attraction_providers.dart';
 import '../../../attraction/domain/entities/attraction.dart';
@@ -40,6 +41,16 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Tracking: User enters the audio guide details page
+    AnalyticsService.logAudioGuideViewed(
+      id: widget.guide.id,
+      title: widget.guide.title,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final localPath = widget.guide.localFilePath;
     if (localPath == null) {
@@ -71,17 +82,31 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
     final stepState = ref.watch(stepTrackingControllerProvider);
     final stepController = ref.read(stepTrackingControllerProvider.notifier);
     ref.listen(audioPlayerControllerProvider(localPath), (previous, next) {
+      // Tracking: Playback begins
       if (next.isPlaying && !(previous?.isPlaying ?? false)) {
         stepController.onPlaybackStarted(pageTitle);
-      } else if (!next.isPlaying && (previous?.isPlaying ?? false)) {
+        AnalyticsService.logAudioGuidePlayed(
+          id: widget.guide.id,
+          title: pageTitle,
+          positionSeconds: next.position.inSeconds,
+        );
+      }
+      // Tracking: Paused or Completed
+      else if (!next.isPlaying && (previous?.isPlaying ?? false)) {
         final isCompleted =
             next.status == AudioPlaybackStatus.stopped &&
             next.duration > Duration.zero &&
             next.position >= next.duration;
         if (isCompleted) {
-          _onGuideCompleted(context);
+          _onGuideCompleted(context, next, stepState.steps);
         } else {
           stepController.onPlaybackPaused();
+          AnalyticsService.logAudioGuidePaused(
+            id: widget.guide.id,
+            title: pageTitle,
+            positionSeconds: next.position.inSeconds,
+            durationSeconds: next.duration.inSeconds,
+          );
         }
       }
     });
@@ -115,6 +140,17 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
               onCalendarPressed: () => DetailScheduleActions.addToCalendar(
                 context: context,
                 item: scheduleItem,
+              ),
+              // Tracking: Share Guide
+              onSharePressed: () => AnalyticsService.logAudioGuideShared(
+                id: widget.guide.id,
+                title: pageTitle,
+              ),
+              // Tracking: Navigation
+              onNavigatePressed: () => AnalyticsService.logNavigationRequested(
+                id: widget.guide.id,
+                name: attraction?.name ?? pageTitle,
+                sourceType: 'audioGuide',
               ),
             ),
           ),
@@ -187,7 +223,19 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
     return '目前沒有景點介紹';
   }
 
-  Future<void> _onGuideCompleted(BuildContext context) async {
+  // Tracking: Guided tour completed (including steps and duration)
+  Future<void> _onGuideCompleted(
+    BuildContext context,
+    AudioPlaybackState finalState,
+    int steps,
+  ) async {
+    // Record completion event
+    await AnalyticsService.logAudioGuideCompleted(
+      id: widget.guide.id,
+      title: widget.guide.title,
+      durationSeconds: finalState.duration.inSeconds,
+      steps: steps,
+    );
     final stepController = ref.read(stepTrackingControllerProvider.notifier);
     final summary = await stepController.onPlaybackCompleted();
     if (summary == null || !context.mounted) return;

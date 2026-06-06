@@ -29,7 +29,12 @@ class AudioPlayerController extends StateNotifier<AudioPlaybackState> {
   Future<void> _init() async {
     // First listen to the stream to ensure that all state changes during the initialization process are captured.
     _subscription = _service.stateStream.listen((playbackState) {
+      final previous = state;
       state = playbackState;
+      // Tracking playback state transitions (also tracked via ref.listen in AudioGuideDetailPage)
+      // Because the guide id/title is unavailable here, playback tracking is moved to ref.listen on the detail page.
+      // Detection can still be done here (only the duration is passed).
+      _detectCompletion(previous, playbackState);
     });
     await MonitoringService.addBreadcrumb(
       message: 'Start audio player initialization',
@@ -51,14 +56,29 @@ class AudioPlayerController extends StateNotifier<AudioPlaybackState> {
       );
     } catch (e) {
       // Player initialization failure is a user-visible error and should not cause the controller to crash.
-      // The monitorFuture has already reported this to Sentry; only the UI state is updated here.
-      // (If you want double confirmation, you can call captureException again, but this is usually unnecessary.)
       if (mounted) {
         state = state.copyWith(
           status: AudioPlaybackStatus.error,
           errorMessage: '播放器初始化失敗：$e',
         );
       }
+    }
+  }
+
+  // Playback complete detection (guide id, duration is sufficient)
+  void _detectCompletion(AudioPlaybackState previous, AudioPlaybackState next) {
+    final wasPlaying = previous.isPlaying;
+    final isNowStopped =
+        !next.isPlaying &&
+        next.status == AudioPlaybackStatus.stopped &&
+        next.duration > Duration.zero &&
+        next.position >= next.duration;
+    if (wasPlaying && isNowStopped) {
+      MonitoringService.addBreadcrumb(
+        message: 'Audio playback completed',
+        category: 'audio.player',
+        data: {'file_path': _path, 'duration_seconds': next.duration.inSeconds},
+      );
     }
   }
 
