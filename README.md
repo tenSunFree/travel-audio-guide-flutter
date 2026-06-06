@@ -9,7 +9,8 @@
 [![Data](https://img.shields.io/badge/Data-Offline--First%20%2B%20Drift-009688)](#offline-first-experience)
 [![Interop](https://img.shields.io/badge/Interop-Pigeon-673AB7)](https://pub.dev/packages/pigeon)
 [![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget-FF9800)](#testing)
-[![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-monitoring)
+[![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-analytics)
+[![Analytics](https://img.shields.io/badge/Analytics-Firebase-FFCA28?logo=firebase&logoColor=black)](#observability-and-analytics)
 
 ---
 
@@ -116,7 +117,7 @@ This project is for learning and technical practice.
 - Verified Model → Entity mapping, pagination behavior, download flow, local file existence checks, and exception propagation
 - Local CI check script for formatting, static analysis, unit tests, and debug APK build validation
 
-### Observability and Monitoring
+### Observability and Analytics
 
 - Integrated Sentry for production-style error tracking and performance monitoring
 - Wrapped Sentry SDK behind a centralized `MonitoringService` to keep feature code decoupled from third-party observability SDKs
@@ -124,7 +125,13 @@ This project is for learning and technical practice.
 - Captured contextual breadcrumbs and exception metadata to support debugging of user-facing failures
 - HTTP request breadcrumbs, failed request capture, and network tracing via `sentry_dio`
 - GoRouter navigation breadcrumbs and navigation-related performance traces via `SentryNavigatorObserver`
-- Sentry DSN injected at build time via `--dart-define-from-file`; local environment files are excluded from version control
+- Integrated Firebase Analytics to track key user interactions and understand how users navigate the app
+- Centralized all event logging behind `AnalyticsService` to keep feature code decoupled from the Firebase SDK
+- Automatic screen view tracking via `FirebaseAnalyticsObserver` registered in GoRouter alongside Sentry
+- Custom events covering tab selection, content detail views, audio guide download outcomes, playback lifecycle events, list filter usage, share actions, calendar additions, navigation requests, and reminder creation
+- Playback analytics include play, pause, and complete events with playback duration and step count metadata
+- Firebase configuration files are restored in CI via GitHub Secrets to avoid exposing app configuration files in the public repository
+- Sentry DSN is injected at build time via `--dart-define-from-file`; local environment files are excluded from version control
 
 ### Journey Reminder
 
@@ -162,6 +169,8 @@ This project is for learning and technical practice.
   Error and performance monitoring SDK (Captures unhandled exceptions, breadcrumbs, app start metrics, slow and frozen frames, and custom transactions for key business flows)
 - sentry_dio  
   Official Dio integration for Sentry (Captures HTTP breadcrumbs, failed requests, and network tracing data with Sentry performance tracing support)
+- firebase_core / firebase_analytics  
+  Firebase initialization and user behavior tracking (Initializes Firebase through FlutterFire CLI configuration; tracks screen views, tab selections, content detail views, audio guide download outcomes, playback lifecycle events with duration and step count metadata, list filter usage, share and navigation actions, and reminder creation via a centralized `AnalyticsService`)
 - flutter_local_notifications  
   Local notification scheduling (Schedules offline-capable activity reminders with timezone-aware delivery and Android alarm mode handling)
 - timezone  
