@@ -67,6 +67,7 @@ This project is for learning and technical practice.
 - Display activity metadata including event period, organizer, venue, ticket information, and related links
 - Tap venue phone numbers to launch the native dialer
 - Open external links and related URLs via `url_launcher`
+- Network images loaded with disk caching and pixel-ratio-aware memory decoding to reduce redundant downloads and memory usage
 
 ### Offline-First Experience
 
@@ -158,7 +159,9 @@ This project is for learning and technical practice.
 - audioplayers  
   Audio playback library (Manages local audio playback, playback state streams, and media controls)
 - path_provider  
-  File system utility (Provides application-specific directories for storing and retrieving downloaded `.mp3` files)  
+  File system utility (Provides application-specific directories for storing and retrieving downloaded `.mp3` files)
+- cached_network_image + flutter_cache_manager  
+  Network image caching (Replaces Image.network across all features, caches images to disk with a configurable stale period, applies pixel-ratio-aware memory decoding, and provides placeholder and error fallback widgets through a unified AppCachedNetworkImage component)
 - Pigeon  
   Type-safe platform interop code generation (Bridges Flutter and native APIs with strongly typed messages, minimizes platform channel boilerplate, and improves maintainability for platform integration)
 - Drift  
