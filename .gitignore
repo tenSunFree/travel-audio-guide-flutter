@@ -44,6 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Android build outputs
+android/build/
+android/.gradle/
+android/**/build/
+
 # Environment config (real environment values not included in Git)
 # example.json is a template and is included in Git
 # dev.json release.json contains the real key and is not included in Git

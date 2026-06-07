@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../../attraction/domain/entities/attraction.dart';
 
 class GuideImageSection extends StatefulWidget {
@@ -47,19 +48,27 @@ class _GuideImageSectionState extends State<GuideImageSection> {
           child: PageView.builder(
             itemCount: images.length,
             onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (_, i) => Image.network(
-              images[i].src,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: AppColors.surfaceMuted,
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  size: 48,
-                  color: AppColors.textHint,
-                ),
-              ),
-            ),
+            itemBuilder: (_, i) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return AppCachedNetworkImage(
+                    imageUrl: images[i].src,
+                    width: constraints.maxWidth,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorWidget: Container(
+                      color: AppColors.surfaceMuted,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.broken_image_outlined,
+                        size: 48,
+                        color: AppColors.textHint,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
         if (images.length > 1)

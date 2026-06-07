@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../domain/entities/home_state.dart';
 import '../utils/home_navigation_launcher.dart';
 import 'home_badge.dart';
@@ -31,10 +32,16 @@ class HeroRecommendCard extends StatelessWidget {
             height: 170,
             width: double.infinity,
             child: card.imageUrl != null
-                ? Image.network(
-                    card.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => HomeFallbackImage(card.emoji),
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      return AppCachedNetworkImage(
+                        imageUrl: card.imageUrl!,
+                        width: constraints.maxWidth,
+                        height: 170,
+                        fit: BoxFit.cover,
+                        errorWidget: HomeFallbackImage(card.emoji),
+                      );
+                    },
                   )
                 : HomeFallbackImage(card.emoji),
           ),

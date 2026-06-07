@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 import 'app.dart';
+import 'core/debug/app_debug_options.dart';
 import 'core/monitoring/monitoring_service.dart';
 import 'core/utils/app_logger.dart';
 import 'firebase_options.dart';
@@ -45,6 +46,7 @@ Future<void> main() async {
       };
       // Debug mode: Mark users in Sentry for easy filtering of your own test events.
       MonitoringService.identifyDebugUser();
+      AppDebugOptions.configure();
       runApp(
         // SentryWidget automatically attaches a screenshot when an error occurs.
         SentryWidget(

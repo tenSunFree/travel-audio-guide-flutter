@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../domain/entities/home_state.dart';
 import 'home_fallback_image.dart';
 
@@ -16,10 +17,12 @@ class HomeThumb extends StatelessWidget {
         width: 96,
         height: 96,
         child: card.imageUrl != null
-            ? Image.network(
-                card.imageUrl!,
+            ? AppCachedNetworkImage(
+                imageUrl: card.imageUrl!,
+                width: 96,
+                height: 96,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => HomeFallbackImage(card.emoji),
+                errorWidget: HomeFallbackImage(card.emoji),
               )
             : HomeFallbackImage(card.emoji),
       ),

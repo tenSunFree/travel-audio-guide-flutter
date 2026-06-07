@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../domain/entities/attraction.dart';
 
 class AttractionTile extends StatelessWidget {
@@ -27,17 +28,18 @@ class AttractionTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: imageUrl.isEmpty
                   ? _Placeholder(categories: attraction.categories)
-                  : Image.network(
-                      imageUrl,
+                  : AppCachedNetworkImage(
+                      imageUrl: imageUrl,
                       width: 96,
                       height: 96,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          _Placeholder(categories: attraction.categories),
+                      errorWidget: _Placeholder(
+                        categories: attraction.categories,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),
-            // ── Text Area
+            // Text Area
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

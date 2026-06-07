@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../../reminder/presentation/utils/detail_schedule_actions.dart';
 import '../../domain/entities/attraction.dart';
 import '../../../../core/widgets/detail_action_buttons.dart';
@@ -243,19 +244,27 @@ class _ImageSectionState extends State<_ImageSection> {
           child: PageView.builder(
             itemCount: images.length,
             onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (_, i) => Image.network(
-              images[i].src,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                color: AppColors.surfaceMuted,
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  size: 48,
-                  color: AppColors.textHint,
-                ),
-              ),
-            ),
+            itemBuilder: (_, i) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return AppCachedNetworkImage(
+                    imageUrl: images[i].src,
+                    width: constraints.maxWidth,
+                    height: 220,
+                    fit: BoxFit.cover,
+                    errorWidget: Container(
+                      color: AppColors.surfaceMuted,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.broken_image_outlined,
+                        size: 48,
+                        color: AppColors.textHint,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
         if (images.length > 1)

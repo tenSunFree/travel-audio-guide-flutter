@@ -28,8 +28,8 @@ class AppSyncService {
   static const _attractionKey = 'sync_attractions';
   static const _audioGuideKey = 'sync_audio_guides';
   static const _activityKey = 'sync_activities';
-  static const _attractionTtl = Duration(hours: 3);
-  static const _audioGuideTtl = Duration(hours: 3);
+  static const _attractionTtl = Duration(hours: 1);
+  static const _audioGuideTtl = Duration(hours: 1);
   static const _activityTtl = Duration(hours: 1);
 
   Future<void> syncAllIfNeeded() async {
