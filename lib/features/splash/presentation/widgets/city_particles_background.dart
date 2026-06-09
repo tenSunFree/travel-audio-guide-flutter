@@ -45,7 +45,7 @@ class _CityParticlesBackgroundState extends State<CityParticlesBackground>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) => CustomPaint(
+      builder: (_, _) => CustomPaint(
         painter: _MapBackgroundPainter(
           dots: _dots,
           progress: _controller.value,
