@@ -262,7 +262,7 @@ class _HeroCard extends StatelessWidget {
         border: Border.all(color: _lightTeal, width: 2),
         boxShadow: [
           BoxShadow(
-            color: _teal.withOpacity(0.13),
+            color: _teal.withValues(alpha: 0.13),
             blurRadius: 28,
             offset: const Offset(0, 12),
           ),
@@ -318,7 +318,7 @@ class _HeroCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: [
                   BoxShadow(
-                    color: _teal.withOpacity(0.3),
+                    color: _teal.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -367,12 +367,12 @@ class _FeatureTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _cardBorder),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withOpacity(0.05),
+            color: accentColor.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -453,7 +453,7 @@ class _StaticMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _routePaint.color = const Color(0xFF007F83).withOpacity(0.07);
+    _routePaint.color = const Color(0xFF007F83).withValues(alpha: 0.07);
     final path = Path()
       ..moveTo(size.width * 0.10, size.height * 0.20)
       ..quadraticBezierTo(
@@ -475,7 +475,7 @@ class _StaticMapPainter extends CustomPainter {
         size.height * 0.64,
       );
     canvas.drawPath(path, _routePaint);
-    _dotPaint.color = const Color(0xFF007F83).withOpacity(0.11);
+    _dotPaint.color = const Color(0xFF007F83).withValues(alpha: 0.11);
     for (final pt in [
       Offset(size.width * 0.10, size.height * 0.20),
       Offset(size.width * 0.44, size.height * 0.10),
@@ -485,7 +485,7 @@ class _StaticMapPainter extends CustomPainter {
     ]) {
       canvas.drawCircle(pt, 5, _dotPaint);
     }
-    _sparklePaint.color = const Color(0xFFFFD66B).withOpacity(0.28);
+    _sparklePaint.color = const Color(0xFFFFD66B).withValues(alpha: 0.28);
     canvas.drawCircle(
       Offset(size.width * 0.84, size.height * 0.16),
       5.5,

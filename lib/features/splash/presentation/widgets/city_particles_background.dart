@@ -70,7 +70,7 @@ class _MapBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _routePaint.color = const Color(0xFF007F83).withOpacity(0.10);
+    _routePaint.color = const Color(0xFF007F83).withValues(alpha: 0.10);
     final path = Path()
       ..moveTo(size.width * 0.12, size.height * 0.22)
       ..quadraticBezierTo(
@@ -92,7 +92,7 @@ class _MapBackgroundPainter extends CustomPainter {
         size.height * 0.66,
       );
     canvas.drawPath(path, _routePaint);
-    _dotPaint.color = const Color(0xFF007F83).withOpacity(0.18);
+    _dotPaint.color = const Color(0xFF007F83).withValues(alpha: 0.18);
     for (final offset in [0.0, 0.3, 0.6, 1.0]) {
       final metric = path.computeMetrics().first;
       final tangent = metric.getTangentForOffset(metric.length * offset);
@@ -104,14 +104,14 @@ class _MapBackgroundPainter extends CustomPainter {
       final opacity =
           0.12 +
           0.22 * ((math.sin(progress * math.pi * 2 + dot.phase) + 1) / 2);
-      _dotPaint.color = const Color(0xFF007F83).withOpacity(opacity);
+      _dotPaint.color = const Color(0xFF007F83).withValues(alpha: opacity);
       canvas.drawCircle(
         Offset(dot.x * size.width, dot.y * size.height),
         dot.size,
         _dotPaint,
       );
     }
-    _starPaint.color = const Color(0xFFFFD66B).withOpacity(0.30);
+    _starPaint.color = const Color(0xFFFFD66B).withValues(alpha: 0.30);
     canvas.drawCircle(
       Offset(size.width * 0.80, size.height * 0.18),
       5.5,

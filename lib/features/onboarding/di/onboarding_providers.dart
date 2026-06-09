@@ -17,11 +17,6 @@ final onboardingLocalDataSourceProvider = Provider<OnboardingLocalDataSource>((
 });
 
 /// Use Notifier to manage the status of "Have you seen the welcome page?"
-///
-/// Why use Notifier instead of simple Provider<bool>:
-/// GoRouter's refreshListenable needs to monitor status changes.
-/// If you only use Provider<bool>, GoRouter will not trigger routing recalculation after completeOnboarding.
-/// After modifying state with Notifier, ref.listen senses changes → ValueNotifier changes → GoRouter automatically redirects.
 class OnboardingNotifier extends Notifier<bool> {
   @override
   bool build() {

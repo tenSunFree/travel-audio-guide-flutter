@@ -56,7 +56,7 @@ class _AnimatedTravelLogoState extends State<AnimatedTravelLogo>
                   height: 124,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _teal.withOpacity(_pulseOpacity.value),
+                    color: _teal.withValues(alpha: _pulseOpacity.value),
                   ),
                 ),
               ),
@@ -73,7 +73,7 @@ class _AnimatedTravelLogoState extends State<AnimatedTravelLogo>
                     borderRadius: BorderRadius.circular(999),
                     boxShadow: [
                       BoxShadow(
-                        color: _teal.withOpacity(0.25),
+                        color: _teal.withValues(alpha: 0.25),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -107,7 +107,7 @@ class _AnimatedTravelLogoState extends State<AnimatedTravelLogo>
         border: Border.all(color: _lightTeal, width: 2),
         boxShadow: [
           BoxShadow(
-            color: _teal.withOpacity(0.12),
+            color: _teal.withValues(alpha: 0.12),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
