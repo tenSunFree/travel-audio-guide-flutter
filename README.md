@@ -144,6 +144,14 @@ This project is for learning and technical practice.
 - Handle Android exact alarm restrictions by falling back to inexact scheduling when exact alarm permission is unavailable
 - Restore scheduled notifications after device reboot through Android boot receiver configuration
 
+### Onboarding Experience
+
+- Animated splash screen with staggered logo drop, text fade, and map-themed background
+- First-launch welcome page introducing core features with sequential entry animations
+- Persist onboarding completion state locally via SharedPreferences
+- GoRouter `refreshListenable` integration for declarative redirect after onboarding
+- Returning users skip onboarding and navigate directly to the home screen
+
 ---
 
 ## Tech Stack
@@ -184,6 +192,8 @@ This project is for learning and technical practice.
   Official Flutter testing framework (Provides unit and widget testing utilities for validating business logic, UI behavior, and regression scenarios)
 - mocktail  
   Mock library for Dart unit testing (Stubs repository and data source dependencies to isolate domain and data layer logic; verifies interaction behavior with `verify` and `verifyNever` without code generation)
+- shared_preferences  
+  Lightweight local key-value storage (Persists onboarding completion state to control first-launch welcome flow and subsequent app startup routing)
 
 ---
 
