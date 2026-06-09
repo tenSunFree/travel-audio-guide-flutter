@@ -32,7 +32,7 @@ class _TravelAudioGuideAppState extends ConsumerState<TravelAudioGuideApp> {
       debugShowCheckedModeBanner: false,
       title: '語音導覽',
       theme: AppTheme.light,
-      routerConfig: appRouter,
+      routerConfig: ref.watch(appRouterProvider),
     );
   }
 }
