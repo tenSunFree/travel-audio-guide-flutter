@@ -120,7 +120,26 @@ This project is for learning and technical practice.
 - Unit tests for domain use cases and data repositories across activity, attraction, and audio guide features
 - Mocked repository, remote data source, and local data source dependencies with `mocktail`
 - Verified Model → Entity mapping, pagination behavior, download flow, local file existence checks, and exception propagation
+- Widget tests for `AudioGuideListPage` covering loading state, populated list, empty state, error state, download/play button rendering, AppBar display, and reactive stream updates
+- Widget tests for `AudioGuideTile` and `ConditionSummaryBar` covering display states, label rendering, reset button visibility, and tap callback behavior
+- Shared test infrastructure in `test/test_helpers` with reusable entity fixtures, fake remote data sources, in-memory Drift database setup with provider overrides, and a fake playback service for isolating audio controller tests
 - Local CI check script for formatting, static analysis, unit tests, and debug APK build validation
+
+### Developer Experience
+
+- Local CI check script (`scripts/check.sh`) mirrors the GitHub Actions pipeline: dependency installation, format check with auto-fix, static analysis, unit tests, and debug APK build
+- Code generation script (`scripts/codegen.sh`) runs `build_runner` for Drift, Freezed, and Riverpod Generator in a single command
+- Development runner (`scripts/run_dev.sh`) injects environment config via `--dart-define-from-file` and supports optional device targeting
+- Release build script (`scripts/build_release.sh`) validates that `env/release.json` exists before producing the release APK, with clear setup instructions on failure
+
+### Git Workflow & CI/CD
+
+- Adopted a feature branch workflow with `develop`, `main`, and `release/*` protected branches
+- Blocked direct pushes and required Pull Requests for all changes to protected branches
+- Configured GitHub Actions CI for Pull Requests, including Dart format check, static analysis, unit tests, and debug APK build
+- Configured merge requirements so CI checks must pass and branches must be up to date before merging
+- Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds, and GitHub Releases
+- Added a Pull Request template to standardize change summaries, test plans, and related issue tracking
 
 ### Observability and Analytics
 
