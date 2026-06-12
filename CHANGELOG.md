@@ -2,6 +2,11 @@
 
 ---
 
+## v1.0.3 - 2026-06-13
+
+### Fixed
+- 修正 CD workflow 未還原 Firebase 設定檔，導致 release build 在靜態分析階段失敗的問題
+
 ## v1.0.2 - 2026-06-12
 
 ### Added
