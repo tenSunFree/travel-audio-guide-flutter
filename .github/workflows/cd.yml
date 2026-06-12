@@ -36,6 +36,11 @@ jobs:
       - name: Show Flutter & Dart version
         run: flutter --version
 
+      - name: Restore Firebase config files
+        run: |
+          printf '%s' "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" | base64 --decode > lib/firebase_options.dart
+          printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+
       - name: Install dependencies
         run: flutter pub get
 
