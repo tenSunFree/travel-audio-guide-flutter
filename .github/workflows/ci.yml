@@ -2,13 +2,19 @@ name: Flutter CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
+      - 'release/**'
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
   pull_request:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
+      - 'release/**'
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
