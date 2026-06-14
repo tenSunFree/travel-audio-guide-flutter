@@ -18,7 +18,8 @@ class AttractionTile extends StatelessWidget {
     final imageUrl = attraction.firstImageUrl;
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      child: Container(
+        color: AppColors.surface,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
