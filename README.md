@@ -22,6 +22,16 @@ This project is for learning and technical practice.
 
 ---
 
+## Related Backend
+
+This app connects to a Go backend for profile management:
+- [travel-audio-guide-go](https://github.com/tenSunFree/travel-audio-guide-go)
+
+The backend provides a RESTful API built with Go, chi, PostgreSQL, pgxpool, sqlc, Supabase JWT (ES256/JWKS), and Docker.
+It handles JWT verification and user profile management.
+
+---
+
 ## Preview
 
 <p align="left">
