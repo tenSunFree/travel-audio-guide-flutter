@@ -2,6 +2,20 @@
 
 ---
 
+## v1.0.4 - 2026-06-18
+
+### Added
+- Nearby attractions section on the home screen, auto-expanding search radius from 3km to 5km to 10km
+- Distance labels on attraction, activity, and audio guide list items
+- Nearest-first sorting for attractions, activities, and audio guides
+- Distance filters: 500m, 1km, 3km, 5km, and unlimited
+- Open-now + nearby compound filtering for attractions
+- Today and upcoming status filtering for activities
+- Fallback UI for denied, permanently denied, and disabled location service
+- Coordinate validation to prevent crashes on missing or invalid location data
+- Audio guide coordinate fallback through matched attraction
+- Nearby enabled state persisted across app restarts
+
 ## v1.0.3 - 2026-06-13
 
 ### Fixed
