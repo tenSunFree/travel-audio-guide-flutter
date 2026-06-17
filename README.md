@@ -185,6 +185,14 @@ It handles JWT verification and user profile management.
 - GoRouter `refreshListenable` integration for declarative redirect after onboarding
 - Returning users skip onboarding and navigate directly to the home screen
 
+### Nearby Recommendations
+
+- Nearby attractions and audio guides on the home screen with distance labels and nearest-first sorting
+- Distance filters for attractions, activities, and audio guides: 500m, 1km, 3km, 5km, and unlimited
+- Fallback UI for denied permission, permanently denied permission, and disabled location services
+- Distance calculations are performed locally using Drift-cached data
+- No background location tracking or additional backend geo-query APIs are required
+
 ---
 
 ## Tech Stack
@@ -227,6 +235,8 @@ It handles JWT verification and user profile management.
   Mock library for Dart unit testing (Stubs repository and data source dependencies to isolate domain and data layer logic; verifies interaction behavior with `verify` and `verifyNever` without code generation)
 - shared_preferences  
   Lightweight local key-value storage (Persists onboarding completion state to control first-launch welcome flow and subsequent app startup routing)
+- geolocator  
+  Provides one-time foreground location retrieval and permission handling for nearby recommendations. Location is used only for local distance calculation against Drift-cached data, without background tracking or backend geo-query APIs.
 
 ---
 
