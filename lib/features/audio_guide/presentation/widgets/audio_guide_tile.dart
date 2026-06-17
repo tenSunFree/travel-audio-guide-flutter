@@ -8,19 +8,19 @@ class AudioGuideTile extends StatelessWidget {
     required this.guide,
     required this.isDownloading,
     required this.onActionPressed,
+    this.distanceLabel,
   });
 
   final AudioGuide guide;
   final bool isDownloading;
   final VoidCallback onActionPressed;
+  final String? distanceLabel;
 
   @override
   Widget build(BuildContext context) {
     final showPlay = guide.isDownloaded;
-    // Unified management of the disabled state; null when isDownloading.
     final VoidCallback? action = isDownloading ? null : onActionPressed;
     return Material(
-      // Move the color from Container to Material to make the InkWell water ripple visible.
       color: AppColors.surface,
       child: InkWell(
         onTap: action,
@@ -30,18 +30,37 @@ class AudioGuideTile extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  guide.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      guide.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (distanceLabel != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        distanceLabel!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textCaption,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
+              // Right side: Button + Update Date
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,

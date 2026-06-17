@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/widgets/app_cached_network_image.dart';
 import '../../domain/entities/attraction.dart';
 
@@ -8,17 +9,39 @@ class AttractionTile extends StatelessWidget {
     super.key,
     required this.attraction,
     required this.onTap,
+    this.userLat,
+    this.userLng,
   });
 
   final Attraction attraction;
   final VoidCallback onTap;
+  final double? userLat;
+  final double? userLng;
+
+  /// Distance label, e.g. "距你 850m". Returns null when location unavailable
+  /// or attraction has no valid coordinate.
+  String? _distanceLabel() {
+    if (userLat == null || userLng == null) return null;
+    if (!NearbyUtils.isValidCoordinate(attraction.nlat, attraction.elong)) {
+      return null;
+    }
+    final meters = NearbyUtils.distanceMeters(
+      fromLat: userLat!,
+      fromLng: userLng!,
+      toLat: attraction.nlat!,
+      toLng: attraction.elong!,
+    );
+    return '距你 ${NearbyUtils.formatDistance(meters)}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = attraction.firstImageUrl;
+    final distanceLabel = _distanceLabel();
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      child: Container(
+        color: AppColors.surface,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,12 +62,12 @@ class AttractionTile extends StatelessWidget {
                     ),
             ),
             const SizedBox(width: 12),
-            // Text Area
+            // Text area
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Attraction Name
+                  // Name
                   Text(
                     attraction.name,
                     maxLines: 2,
@@ -56,7 +79,7 @@ class AttractionTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Classification
+                  // Category
                   if (attraction.categoryText.isNotEmpty)
                     Text(
                       attraction.categoryText,
@@ -68,33 +91,13 @@ class AttractionTile extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(height: 4),
-                  // Administrative District + Address
-                  if (attraction.distric.isNotEmpty ||
-                      attraction.address.isNotEmpty)
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 13,
-                          color: AppColors.textHint,
-                        ),
-                        const SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                            attraction.distric.isNotEmpty
-                                ? attraction.distric
-                                : attraction.address,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textCaption,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  // Opening Hours
+                  // Distance + district row
+                  _MetaRow(
+                    distanceLabel: distanceLabel,
+                    distric: attraction.distric,
+                    address: attraction.address,
+                  ),
+                  // Opening hours
                   if (attraction.openTime.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Row(
@@ -135,7 +138,48 @@ class AttractionTile extends StatelessWidget {
   }
 }
 
-/// Category when no image is displayed: Emoji placeholder
+// Distance + district row
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({
+    required this.distanceLabel,
+    required this.distric,
+    required this.address,
+  });
+
+  final String? distanceLabel;
+  final String distric;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = distric.isNotEmpty ? distric : address;
+    final hasLocation = location.isNotEmpty;
+    final hasDistance = distanceLabel != null;
+    if (!hasDistance && !hasLocation) return const SizedBox.shrink();
+    return Row(
+      children: [
+        const Icon(
+          Icons.location_on_outlined,
+          size: 13,
+          color: AppColors.textHint,
+        ),
+        const SizedBox(width: 2),
+        Expanded(
+          child: Text(
+            [
+              if (hasDistance) distanceLabel!,
+              if (hasLocation) location,
+            ].join('  ·  '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.textCaption),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Placeholder extends StatelessWidget {
   const _Placeholder({required this.categories});
 

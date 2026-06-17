@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/nearby/location_controller.dart';
+import '../../../../core/nearby/nearby_models.dart';
 import '../../../../core/router/app_router.dart';
-import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../core/widgets/common_app_bar.dart';
+import '../../../../core/widgets/list_skeleton.dart';
 import '../../di/activity_providers.dart';
 import '../../domain/entities/activity.dart';
 import '../controllers/activity_list_controller.dart';
@@ -17,7 +19,6 @@ import '../widgets/activity_tile.dart';
 class ActivityListPage extends ConsumerStatefulWidget {
   const ActivityListPage({super.key, this.initialStatus});
 
-  /// Query value (ongoing/upcoming) from the "Event Recommendations" section on the homepage
   final String? initialStatus;
 
   @override
@@ -31,7 +32,6 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
-    // Initial filter brought in on the homepage
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final status = ActivityStatusFilter.fromQuery(widget.initialStatus);
       if (status != ActivityStatusFilter.all) {
@@ -42,6 +42,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
               statusFilter: status,
               feeFilter: ActivityFeeFilter.all,
               distric: '',
+              distanceFilter: DistanceFilter.unlimited,
             );
       }
     });
@@ -64,7 +65,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
     super.dispose();
   }
 
-  Future<void> _openSortFilter(BuildContext context) async {
+  Future<void> _openSortFilter() async {
     final state = ref.read(activityListControllerProvider);
     final result = await showModalBottomSheet<ActivityFilterResult>(
       context: context,
@@ -78,20 +79,47 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
         initialStatusFilter: state.statusFilter,
         initialFeeFilter: state.feeFilter,
         initialDistric: state.distric,
+        initialDistanceFilter: state.distanceFilter,
         availableDistrics: state.availableDistrics,
       ),
     );
-    if (result != null) {
-      final (sort, status, fee, distric) = result;
+    if (result == null || !mounted) return;
+    final needLocation =
+        result.sortOrder == ActivitySortOrder.distanceAsc ||
+        result.distanceFilter != DistanceFilter.unlimited;
+    if (needLocation) {
+      final point = await ref
+          .read(locationControllerProvider.notifier)
+          .getCurrentLocation();
+      if (!mounted) return;
+      if (point == null) {
+        ref
+            .read(activityListControllerProvider.notifier)
+            .applySortFilter(
+              sortOrder: ActivitySortOrder.beginAsc,
+              statusFilter: result.statusFilter,
+              feeFilter: result.feeFilter,
+              distric: result.distric,
+              distanceFilter: DistanceFilter.unlimited,
+            );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('無法取得位置，已回復預設排序。')));
+        return;
+      }
       ref
           .read(activityListControllerProvider.notifier)
-          .applySortFilter(
-            sortOrder: sort,
-            statusFilter: status,
-            feeFilter: fee,
-            distric: distric,
-          );
+          .applyLocation(point.latitude, point.longitude);
     }
+    ref
+        .read(activityListControllerProvider.notifier)
+        .applySortFilter(
+          sortOrder: result.sortOrder,
+          statusFilter: result.statusFilter,
+          feeFilter: result.feeFilter,
+          distric: result.distric,
+          distanceFilter: result.distanceFilter,
+        );
   }
 
   void _openDetail(Activity activity) {
@@ -117,7 +145,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
                   color: isNonDefault ? primaryColor : null,
                 ),
                 tooltip: '排序與篩選',
-                onPressed: () => _openSortFilter(context),
+                onPressed: _openSortFilter,
               ),
               if (isNonDefault)
                 Positioned(
@@ -138,10 +166,10 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
       ),
       body: Builder(
         builder: (context) {
-          if (state.allItems.isEmpty && state.isSyncing) {
+          if (state.isInitialLoading && state.allItems.isEmpty) {
             return const ListSkeleton(
-              itemCount: 7,
-              itemHeight: 100,
+              itemCount: 6,
+              itemHeight: 88,
               hasLeadingBox: true,
             );
           }
@@ -179,9 +207,7 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
               ),
             );
           }
-          if (!state.isInitialLoading &&
-              state.allItems.isNotEmpty &&
-              state.items.isEmpty) {
+          if (state.allItems.isNotEmpty && state.items.isEmpty) {
             return Column(
               children: [
                 _buildSummaryBar(state, controller),
@@ -206,47 +232,30 @@ class _ActivityListPageState extends ConsumerState<ActivityListPage> {
               children: [
                 _buildSummaryBar(state, controller),
                 Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: ListView.separated(
-                      key: ValueKey(
-                        '${state.sortOrder.name}_'
-                        '${state.statusFilter.name}_'
-                        '${state.feeFilter.name}_'
-                        '${state.distric}',
-                      ),
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount:
-                          state.items.length + (state.isLoadingMore ? 1 : 0),
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: AppColors.divider),
-                      itemBuilder: (context, index) {
-                        if (index >= state.items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final item = state.items[index];
-                        return ActivityTile(
-                          activity: item,
-                          onTap: () => _openDetail(item),
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount:
+                        state.items.length + (state.isLoadingMore ? 1 : 0),
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: AppColors.divider),
+                    itemBuilder: (context, index) {
+                      if (index >= state.items.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(child: CircularProgressIndicator()),
                         );
-                      },
-                    ),
+                      }
+                      final item = state.items[index];
+                      return ActivityTile(
+                        activity: item,
+                        userLat: state.userLat,
+                        userLng: state.userLng,
+                        onTap: () => _openDetail(item),
+                      );
+                    },
                   ),
                 ),
-                if (state.errorMessage != null && state.allItems.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    color: AppColors.errorSurface,
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      state.errorMessage!,
-                      style: const TextStyle(color: AppColors.textError),
-                    ),
-                  ),
               ],
             ),
           );

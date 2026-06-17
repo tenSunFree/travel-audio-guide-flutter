@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/nearby/location_controller.dart';
+import '../../../../core/nearby/nearby_models.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../core/widgets/common_app_bar.dart';
@@ -46,36 +49,66 @@ class _AudioGuideListPageState extends ConsumerState<AudioGuideListPage> {
     super.dispose();
   }
 
+  // Sort / filter — Add distance filtering + positioning process
   Future<void> _openSortFilter(BuildContext context) async {
     final state = ref.read(audioGuideListControllerProvider);
-    final result = await showModalBottomSheet<(SortOrder, FilterType)>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SortFilterBottomSheet(
-        initialSortOrder: state.sortOrder,
-        initialFilterType: state.filterType,
-      ),
-    );
-    if (result != null) {
-      final (sort, filter) = result;
+    final result =
+        await showModalBottomSheet<(SortOrder, FilterType, DistanceFilter)>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          builder: (_) => SortFilterBottomSheet(
+            initialSortOrder: state.sortOrder,
+            initialFilterType: state.filterType,
+            initialDistanceFilter: state.distanceFilter,
+          ),
+        );
+    // The context is passed in as a parameter, so use context.mounted
+    if (result == null || !context.mounted) return;
+    final (sort, filter, distanceFilter) = result;
+    final needLocation =
+        sort == SortOrder.distanceAsc ||
+        distanceFilter != DistanceFilter.unlimited;
+    if (needLocation) {
+      final point = await ref
+          .read(locationControllerProvider.notifier)
+          .getCurrentLocation();
+      if (!context.mounted) return;
+      if (point == null) {
+        ref
+            .read(audioGuideListControllerProvider.notifier)
+            .applySortFilter(
+              SortOrder.dateNewest,
+              FilterType.all,
+              distanceFilter: DistanceFilter.unlimited,
+            );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('無法取得位置，已回復預設排序。')));
+        return;
+      }
       ref
           .read(audioGuideListControllerProvider.notifier)
-          .applySortFilter(sort, filter);
+          .applyLocation(point.latitude, point.longitude);
     }
+    ref
+        .read(audioGuideListControllerProvider.notifier)
+        .applySortFilter(sort, filter, distanceFilter: distanceFilter);
   }
 
   Future<void> _handleAction(AudioGuide guide) async {
     if (guide.isDownloaded && guide.localFilePath != null) {
+      // Using State.context directly before await is fine.
       context.push(AppRoutes.audioGuideDetailPath(guide.id), extra: guide);
       return;
     }
     final error = await ref
         .read(audioGuideListControllerProvider.notifier)
         .downloadGuide(guide);
+    // _handleAction uses State.context, so using mounted is sufficient.
     if (!mounted) return;
     if (error != null) {
       ScaffoldMessenger.of(
@@ -223,8 +256,7 @@ class _AudioGuideListPageState extends ConsumerState<AudioGuideListPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       itemCount:
                           state.items.length + (state.isLoadingMore ? 1 : 0),
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         if (index >= state.items.length) {
                           return const Padding(
@@ -233,8 +265,22 @@ class _AudioGuideListPageState extends ConsumerState<AudioGuideListPage> {
                           );
                         }
                         final guide = state.items[index];
+                        // Calculate distance label (only if there is a location)
+                        final distanceMeters =
+                            state.userLat != null && state.userLng != null
+                            ? AudioGuideListState.distanceForGuide(
+                                guide: guide,
+                                attractions: state.attractions,
+                                userLat: state.userLat!,
+                                userLng: state.userLng!,
+                              )
+                            : null;
+                        final distanceLabel = distanceMeters == null
+                            ? null
+                            : '距你 ${NearbyUtils.formatDistance(distanceMeters)}';
                         return AudioGuideTile(
                           guide: guide,
+                          distanceLabel: distanceLabel,
                           isDownloading: state.downloadingIds.contains(
                             guide.id,
                           ),

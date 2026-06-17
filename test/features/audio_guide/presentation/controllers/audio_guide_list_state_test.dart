@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/domain/entities/audio_guide.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/presentation/controllers/audio_guide_list_controller.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/presentation/enums/sort_filter_enums.dart';
+import 'package:flutter_travel_audio_guide/core/nearby/nearby_models.dart';
 
 // Helper
 AudioGuide _guide({
@@ -40,9 +41,10 @@ void main() {
         expect(state.errorMessage, isNull);
         expect(state.sortOrder, SortOrder.dateNewest);
         expect(state.filterType, FilterType.all);
-        // isSyncing starts true (waiting for first sync result)
         expect(state.isSyncing, isTrue);
         expect(state.isDefaultFilter, isTrue);
+        expect(state.distanceFilter, DistanceFilter.unlimited);
+        expect(state.attractions, isEmpty);
       });
     });
     // computeDisplayItems sort
@@ -55,42 +57,52 @@ void main() {
           ],
           SortOrder.dateNewest,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.map((e) => e.id), <int>[2, 1]);
       });
       test('sorts oldest first', () {
-        final guides = [
-          _guide(id: 1, title: 'B', modified: '2026-01-01'),
-          _guide(id: 2, title: 'A', modified: '2026-05-01'),
-        ];
         final result = AudioGuideListState.computeDisplayItems(
-          guides,
+          [
+            _guide(id: 1, title: 'B', modified: '2026-01-01'),
+            _guide(id: 2, title: 'A', modified: '2026-05-01'),
+          ],
           SortOrder.dateOldest,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.map((e) => e.id), <int>[1, 2]);
       });
       test('sorts alphabetically by name A-Z', () {
-        final guides = [
-          _guide(id: 1, title: 'B', modified: '2026-01-01'),
-          _guide(id: 2, title: 'A', modified: '2026-05-01'),
-        ];
         final result = AudioGuideListState.computeDisplayItems(
-          guides,
+          [
+            _guide(id: 1, title: 'B', modified: '2026-01-01'),
+            _guide(id: 2, title: 'A', modified: '2026-05-01'),
+          ],
           SortOrder.nameAZ,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.map((e) => e.id), <int>[2, 1]);
       });
       test('sorts downloaded items first', () {
-        final guides = [
-          _guide(id: 1, title: 'B', modified: '2026-01-01'),
-          _guide(id: 2, title: 'A', modified: '2026-05-01', isDownloaded: true),
-        ];
         final result = AudioGuideListState.computeDisplayItems(
-          guides,
+          [
+            _guide(id: 1, title: 'B', modified: '2026-01-01'),
+            _guide(
+              id: 2,
+              title: 'A',
+              modified: '2026-05-01',
+              isDownloaded: true,
+            ),
+          ],
           SortOrder.downloadedFirst,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.first.id, 2);
         expect(result.first.isDownloaded, isTrue);
@@ -106,6 +118,8 @@ void main() {
           original,
           SortOrder.dateNewest,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(original.map((g) => g.id).toList(), before);
       });
@@ -121,6 +135,8 @@ void main() {
           guides,
           SortOrder.dateNewest,
           FilterType.all,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.length, 2);
       });
@@ -129,6 +145,8 @@ void main() {
           guides,
           SortOrder.dateNewest,
           FilterType.downloaded,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.map((e) => e.id), <int>[2]);
       });
@@ -137,6 +155,8 @@ void main() {
           guides,
           SortOrder.dateNewest,
           FilterType.notDownloaded,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.map((e) => e.id), <int>[1]);
       });
@@ -146,6 +166,8 @@ void main() {
             [],
             SortOrder.dateNewest,
             filter,
+            distanceFilter: DistanceFilter.unlimited,
+            attractions: const [],
           );
           expect(result, isEmpty, reason: 'filter=$filter should return empty');
         }
@@ -168,6 +190,8 @@ void main() {
           guides,
           SortOrder.dateNewest,
           FilterType.downloaded,
+          distanceFilter: DistanceFilter.unlimited,
+          attractions: const [],
         );
         expect(result.every((g) => g.isDownloaded), isTrue);
         expect(result.map((g) => g.modified).toList(), [
@@ -211,10 +235,16 @@ void main() {
         );
         expect(state.downloadingIds, {3, 7, 99});
       });
+      test('updates distanceFilter', () {
+        final state = AudioGuideListState.initial().copyWith(
+          distanceFilter: DistanceFilter.km3,
+        );
+        expect(state.distanceFilter, DistanceFilter.km3);
+      });
     });
     // isDefaultFilter
     group('isDefaultFilter', () {
-      test('true when dateNewest + all', () {
+      test('true when dateNewest + all + unlimited distance', () {
         final state = AudioGuideListState.initial();
         expect(state.isDefaultFilter, isTrue);
       });
@@ -227,6 +257,12 @@ void main() {
       test('false when filter is not all', () {
         final state = AudioGuideListState.initial().copyWith(
           filterType: FilterType.downloaded,
+        );
+        expect(state.isDefaultFilter, isFalse);
+      });
+      test('false when distanceFilter is not unlimited', () {
+        final state = AudioGuideListState.initial().copyWith(
+          distanceFilter: DistanceFilter.km1,
         );
         expect(state.isDefaultFilter, isFalse);
       });

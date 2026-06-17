@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import '../../../../core/nearby/nearby_models.dart';
 import '../enums/activity_sort_filter_enums.dart';
 
-/// Return type: (Sort, Status filter, Fee filter, Administrative region)
-typedef ActivityFilterResult = (
+typedef ActivityFilterResult = ({
   ActivitySortOrder sortOrder,
   ActivityStatusFilter statusFilter,
   ActivityFeeFilter feeFilter,
   String distric,
-);
+  DistanceFilter distanceFilter,
+});
 
 class ActivitySortFilterBottomSheet extends StatefulWidget {
   const ActivitySortFilterBottomSheet({
@@ -16,6 +17,7 @@ class ActivitySortFilterBottomSheet extends StatefulWidget {
     required this.initialStatusFilter,
     required this.initialFeeFilter,
     required this.initialDistric,
+    required this.initialDistanceFilter,
     required this.availableDistrics,
   });
 
@@ -23,6 +25,7 @@ class ActivitySortFilterBottomSheet extends StatefulWidget {
   final ActivityStatusFilter initialStatusFilter;
   final ActivityFeeFilter initialFeeFilter;
   final String initialDistric;
+  final DistanceFilter initialDistanceFilter;
   final List<String> availableDistrics;
 
   @override
@@ -36,6 +39,7 @@ class _ActivitySortFilterBottomSheetState
   late ActivityStatusFilter _statusFilter;
   late ActivityFeeFilter _feeFilter;
   late String _distric;
+  late DistanceFilter _distanceFilter;
 
   @override
   void initState() {
@@ -44,6 +48,7 @@ class _ActivitySortFilterBottomSheetState
     _statusFilter = widget.initialStatusFilter;
     _feeFilter = widget.initialFeeFilter;
     _distric = widget.initialDistric;
+    _distanceFilter = widget.initialDistanceFilter;
   }
 
   void _reset() {
@@ -52,7 +57,18 @@ class _ActivitySortFilterBottomSheetState
       _statusFilter = ActivityStatusFilter.all;
       _feeFilter = ActivityFeeFilter.all;
       _distric = '';
+      _distanceFilter = DistanceFilter.unlimited;
     });
+  }
+
+  void _apply() {
+    Navigator.of(context).pop<ActivityFilterResult>((
+      sortOrder: _sortOrder,
+      statusFilter: _statusFilter,
+      feeFilter: _feeFilter,
+      distric: _distric,
+      distanceFilter: _distanceFilter,
+    ));
   }
 
   @override
@@ -63,7 +79,6 @@ class _ActivitySortFilterBottomSheetState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           Container(
             margin: const EdgeInsets.only(top: 12),
             width: 40,
@@ -73,7 +88,6 @@ class _ActivitySortFilterBottomSheetState
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          // Title
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Align(
@@ -87,31 +101,36 @@ class _ActivitySortFilterBottomSheetState
             ),
           ),
           const Divider(height: 1),
-          // Scrollable content
           Flexible(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Activity status
                   _SectionLabel(label: '活動狀態'),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: ActivityStatusFilter.values
-                          .map(
-                            (f) => ChoiceChip(
-                              label: Text(f.label),
-                              selected: _statusFilter == f,
-                              onSelected: (_) =>
-                                  setState(() => _statusFilter = f),
-                            ),
-                          )
-                          .toList(),
-                    ),
+                  _ChipWrap(
+                    children: ActivityStatusFilter.values.map((f) {
+                      return ChoiceChip(
+                        label: Text(f.label),
+                        selected: _statusFilter == f,
+                        onSelected: (_) => setState(() => _statusFilter = f),
+                      );
+                    }).toList(),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Distance
+                  _SectionLabel(label: '距離範圍'),
+                  _ChipWrap(
+                    children: DistanceFilter.values.map((f) {
+                      return ChoiceChip(
+                        label: Text(f.label),
+                        selected: _distanceFilter == f,
+                        onSelected: (_) => setState(() => _distanceFilter = f),
+                      );
+                    }).toList(),
+                  ),
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Sort
                   _SectionLabel(label: '排序'),
                   RadioGroup<ActivitySortOrder>(
                     groupValue: _sortOrder,
@@ -132,46 +151,36 @@ class _ActivitySortFilterBottomSheetState
                     ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Fee
                   _SectionLabel(label: '費用'),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: ActivityFeeFilter.values
-                          .map(
-                            (f) => ChoiceChip(
-                              label: Text(f.label),
-                              selected: _feeFilter == f,
-                              onSelected: (_) => setState(() => _feeFilter = f),
-                            ),
-                          )
-                          .toList(),
-                    ),
+                  _ChipWrap(
+                    children: ActivityFeeFilter.values.map((f) {
+                      return ChoiceChip(
+                        label: Text(f.label),
+                        selected: _feeFilter == f,
+                        onSelected: (_) => setState(() => _feeFilter = f),
+                      );
+                    }).toList(),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // District
                   if (widget.availableDistrics.isNotEmpty) ...[
                     _SectionLabel(label: '行政區'),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('全部'),
-                            selected: _distric.isEmpty,
-                            onSelected: (_) => setState(() => _distric = ''),
+                    _ChipWrap(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('全部'),
+                          selected: _distric.isEmpty,
+                          onSelected: (_) => setState(() => _distric = ''),
+                        ),
+                        ...widget.availableDistrics.map(
+                          (d) => ChoiceChip(
+                            label: Text(d),
+                            selected: _distric == d,
+                            onSelected: (_) => setState(() => _distric = d),
                           ),
-                          ...widget.availableDistrics.map(
-                            (d) => ChoiceChip(
-                              label: Text(d),
-                              selected: _distric == d,
-                              onSelected: (_) => setState(() => _distric = d),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ] else
                     const SizedBox(height: 16),
@@ -179,7 +188,6 @@ class _ActivitySortFilterBottomSheetState
               ),
             ),
           ),
-          // Bottom buttons
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -194,9 +202,7 @@ class _ActivitySortFilterBottomSheetState
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.of(
-                      context,
-                    ).pop((_sortOrder, _statusFilter, _feeFilter, _distric)),
+                    onPressed: _apply,
                     child: const Text('套用'),
                   ),
                 ),
@@ -227,6 +233,20 @@ class _SectionLabel extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _ChipWrap extends StatelessWidget {
+  const _ChipWrap({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Wrap(spacing: 8, runSpacing: 8, children: children),
     );
   }
 }

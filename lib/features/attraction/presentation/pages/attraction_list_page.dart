@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/nearby/location_controller.dart';
+import '../../../../core/nearby/nearby_models.dart';
 import '../../../../core/router/app_router.dart';
-import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../core/widgets/common_app_bar.dart';
+import '../../../../core/widgets/list_skeleton.dart';
 import '../../di/attraction_providers.dart';
 import '../../domain/entities/attraction.dart';
 import '../controllers/attraction_list_controller.dart';
@@ -21,11 +23,7 @@ class AttractionListPage extends ConsumerStatefulWidget {
     this.initialOpenNow = false,
   });
 
-  /// Query value recommended from the homepage for different time periods
-  /// (morning/afternoon/evening/night)
   final String? initialTimeSlot;
-
-  /// Filter from "Available Now" on the homepage
   final bool initialOpenNow;
 
   @override
@@ -39,8 +37,6 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
-    // Initial filtering on the homepage
-    // refs can only be stored and retrieved after the widget tree is fully built.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final timeSlot = AttractionTimeSlotFilter.fromQuery(
         widget.initialTimeSlot,
@@ -73,7 +69,8 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
     super.dispose();
   }
 
-  Future<void> _openSortFilter(BuildContext context) async {
+  // Sort / filter sheet — requests location when needed
+  Future<void> _openSortFilter() async {
     final state = ref.read(attractionListControllerProvider);
     final result = await showModalBottomSheet<AttractionFilterResult>(
       context: context,
@@ -90,23 +87,55 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
         initialFacilities: state.selectedFacilities,
         initialOpenNowOnly: state.openNowOnly,
         initialTimeSlotFilter: state.timeSlotFilter,
+        initialDistanceFilter: state.distanceFilter,
         availableCategories: state.availableCategories,
         availableDistrics: state.availableDistrics,
       ),
     );
-    if (result != null) {
+    if (result == null || !mounted) return;
+    final needLocation =
+        result.sortOrder == AttractionSortOrder.distanceAsc ||
+        result.distanceFilter != DistanceFilter.unlimited;
+    if (needLocation) {
+      final point = await ref
+          .read(locationControllerProvider.notifier)
+          .getCurrentLocation();
+      if (!mounted) return;
+      if (point == null) {
+        // Location failed — apply without distance
+        ref
+            .read(attractionListControllerProvider.notifier)
+            .applySortFilter(
+              sortOrder: AttractionSortOrder.apiOrder,
+              categoryIds: result.categoryIds,
+              distric: result.distric,
+              targets: result.targets,
+              facilities: result.facilities,
+              openNowOnly: result.openNowOnly,
+              timeSlotFilter: result.timeSlotFilter,
+              distanceFilter: DistanceFilter.unlimited,
+            );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('無法取得位置，已回復預設排序。')));
+        return;
+      }
       ref
           .read(attractionListControllerProvider.notifier)
-          .applySortFilter(
-            sortOrder: result.sortOrder,
-            categoryIds: result.categoryIds,
-            distric: result.distric,
-            targets: result.targets,
-            facilities: result.facilities,
-            openNowOnly: result.openNowOnly,
-            timeSlotFilter: result.timeSlotFilter,
-          );
+          .applyLocation(point.latitude, point.longitude);
     }
+    ref
+        .read(attractionListControllerProvider.notifier)
+        .applySortFilter(
+          sortOrder: result.sortOrder,
+          categoryIds: result.categoryIds,
+          distric: result.distric,
+          targets: result.targets,
+          facilities: result.facilities,
+          openNowOnly: result.openNowOnly,
+          timeSlotFilter: result.timeSlotFilter,
+          distanceFilter: result.distanceFilter,
+        );
   }
 
   void _openDetail(Attraction attraction) {
@@ -135,7 +164,7 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
                   color: isNonDefault ? primaryColor : null,
                 ),
                 tooltip: '排序與篩選',
-                onPressed: () => _openSortFilter(context),
+                onPressed: _openSortFilter,
               ),
               if (isNonDefault)
                 Positioned(
@@ -218,18 +247,6 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
               ],
             );
           }
-          if (!state.isLoading && state.allItems.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: controller.refresh,
-              child: ListView(
-                physics: AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(height: 160),
-                  Center(child: Text('目前沒有遊憩景點資料')),
-                ],
-              ),
-            );
-          }
           return RefreshIndicator(
             onRefresh: controller.refresh,
             child: Column(
@@ -237,15 +254,6 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
                 _buildSummaryBar(state, controller),
                 Expanded(
                   child: ListView.separated(
-                    key: ValueKey(
-                      '${state.sortOrder.name}_'
-                      '${state.selectedCategoryIds.join(",")}_'
-                      '${state.distric}_'
-                      '${state.selectedTargets.map((t) => t.name).join(",")}_'
-                      '${state.selectedFacilities.map((f) => f.name).join(",")}_'
-                      '${state.openNowOnly}_'
-                      '${state.timeSlotFilter.name}',
-                    ),
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     itemCount:
@@ -262,6 +270,8 @@ class _AttractionListPageState extends ConsumerState<AttractionListPage> {
                       final item = state.items[index];
                       return AttractionTile(
                         attraction: item,
+                        userLat: state.userLat,
+                        userLng: state.userLng,
                         onTap: () => _openDetail(item),
                       );
                     },

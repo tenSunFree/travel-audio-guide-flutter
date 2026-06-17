@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../di/reminder_providers.dart';
 import '../widgets/reminder_tile.dart';
 
@@ -10,6 +11,7 @@ class MyJourneyPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final remindersAsync = ref.watch(reminderListProvider);
     return Scaffold(
+      backgroundColor: AppColors.pageBackground,
       appBar: AppBar(title: const Text('我的旅程')),
       body: remindersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

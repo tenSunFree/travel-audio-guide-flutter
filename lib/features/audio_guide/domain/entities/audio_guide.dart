@@ -10,6 +10,7 @@ abstract class AudioGuide with _$AudioGuide {
     required String url,
     required String modified,
     required bool isDownloaded,
+    int? matchedAttractionId,
     String? summary,
     String? fileExt,
     String? localFilePath,

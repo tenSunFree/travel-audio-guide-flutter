@@ -52,5 +52,7 @@
       <string>comgooglemaps</string>
       <string>https</string>
     </array>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>允許定位後，我們可以依照你目前的位置推薦附近景點、語音導覽與活動。</string>
 </dict>
 </plist>
