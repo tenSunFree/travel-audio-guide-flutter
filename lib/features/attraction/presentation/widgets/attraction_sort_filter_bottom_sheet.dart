@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/nearby/nearby_models.dart';
 import '../../domain/entities/attraction.dart';
 import '../enums/attraction_sort_filter_enums.dart';
 
@@ -10,6 +11,7 @@ typedef AttractionFilterResult = ({
   Set<AttractionFacilityFilter> facilities,
   bool openNowOnly,
   AttractionTimeSlotFilter timeSlotFilter,
+  DistanceFilter distanceFilter,
 });
 
 class AttractionSortFilterBottomSheet extends StatefulWidget {
@@ -22,6 +24,7 @@ class AttractionSortFilterBottomSheet extends StatefulWidget {
     required this.initialFacilities,
     required this.initialOpenNowOnly,
     required this.initialTimeSlotFilter,
+    required this.initialDistanceFilter,
     required this.availableCategories,
     required this.availableDistrics,
   });
@@ -33,6 +36,7 @@ class AttractionSortFilterBottomSheet extends StatefulWidget {
   final Set<AttractionFacilityFilter> initialFacilities;
   final bool initialOpenNowOnly;
   final AttractionTimeSlotFilter initialTimeSlotFilter;
+  final DistanceFilter initialDistanceFilter;
   final List<AttractionCategory> availableCategories;
   final List<String> availableDistrics;
 
@@ -50,6 +54,7 @@ class _AttractionSortFilterBottomSheetState
   late Set<AttractionFacilityFilter> _facilities;
   late bool _openNowOnly;
   late AttractionTimeSlotFilter _timeSlotFilter;
+  late DistanceFilter _distanceFilter;
 
   @override
   void initState() {
@@ -61,6 +66,7 @@ class _AttractionSortFilterBottomSheetState
     _facilities = {...widget.initialFacilities};
     _openNowOnly = widget.initialOpenNowOnly;
     _timeSlotFilter = widget.initialTimeSlotFilter;
+    _distanceFilter = widget.initialDistanceFilter;
   }
 
   void _reset() {
@@ -72,6 +78,7 @@ class _AttractionSortFilterBottomSheetState
       _facilities.clear();
       _openNowOnly = false;
       _timeSlotFilter = AttractionTimeSlotFilter.all;
+      _distanceFilter = DistanceFilter.unlimited;
     });
   }
 
@@ -84,6 +91,7 @@ class _AttractionSortFilterBottomSheetState
       facilities: Set.unmodifiable(_facilities),
       openNowOnly: _openNowOnly,
       timeSlotFilter: _timeSlotFilter,
+      distanceFilter: _distanceFilter,
     ));
   }
 
@@ -125,6 +133,7 @@ class _AttractionSortFilterBottomSheetState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Open now
                   _SectionLabel(label: '開放狀態'),
                   SwitchListTile(
                     title: const Text('只看現在可去'),
@@ -135,6 +144,19 @@ class _AttractionSortFilterBottomSheetState
                     onChanged: (v) => setState(() => _openNowOnly = v),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Distance
+                  _SectionLabel(label: '距離範圍'),
+                  _ChipWrap(
+                    children: DistanceFilter.values.map((f) {
+                      return ChoiceChip(
+                        label: Text(f.label),
+                        selected: _distanceFilter == f,
+                        onSelected: (_) => setState(() => _distanceFilter = f),
+                      );
+                    }).toList(),
+                  ),
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Time slot
                   _SectionLabel(label: '推薦時段'),
                   RadioGroup<AttractionTimeSlotFilter>(
                     groupValue: _timeSlotFilter,
@@ -155,6 +177,7 @@ class _AttractionSortFilterBottomSheetState
                     ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Sort
                   _SectionLabel(label: '排序'),
                   RadioGroup<AttractionSortOrder>(
                     groupValue: _sortOrder,
@@ -175,6 +198,7 @@ class _AttractionSortFilterBottomSheetState
                     ),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Category
                   if (widget.availableCategories.isNotEmpty) ...[
                     _SectionLabel(label: '分類'),
                     _ChipWrap(
@@ -196,6 +220,7 @@ class _AttractionSortFilterBottomSheetState
                     ),
                     const Divider(height: 24, indent: 16, endIndent: 16),
                   ],
+                  // District
                   if (widget.availableDistrics.isNotEmpty) ...[
                     _SectionLabel(label: '行政區'),
                     _ChipWrap(
@@ -216,6 +241,7 @@ class _AttractionSortFilterBottomSheetState
                     ),
                     const Divider(height: 24, indent: 16, endIndent: 16),
                   ],
+                  // Target groups
                   _SectionLabel(label: '適合族群'),
                   _ChipWrap(
                     children: AttractionTargetFilter.values
@@ -235,6 +261,7 @@ class _AttractionSortFilterBottomSheetState
                         .toList(),
                   ),
                   const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Facilities
                   _SectionLabel(label: '友善設施'),
                   _ChipWrap(
                     children: AttractionFacilityFilter.values
@@ -286,7 +313,6 @@ class _AttractionSortFilterBottomSheetState
   }
 }
 
-// Shared small components
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.label});
 

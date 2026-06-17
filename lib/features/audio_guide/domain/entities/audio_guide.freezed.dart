@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AudioGuide {
 
- int get id; String get title; String get url; String get modified; bool get isDownloaded; String? get summary; String? get fileExt; String? get localFilePath;
+ int get id; String get title; String get url; String get modified; bool get isDownloaded; int? get matchedAttractionId; String? get summary; String? get fileExt; String? get localFilePath;
 /// Create a copy of AudioGuide
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $AudioGuideCopyWith<AudioGuide> get copyWith => _$AudioGuideCopyWithImpl<AudioGu
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AudioGuide&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.url, url) || other.url == url)&&(identical(other.modified, modified) || other.modified == modified)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.fileExt, fileExt) || other.fileExt == fileExt)&&(identical(other.localFilePath, localFilePath) || other.localFilePath == localFilePath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AudioGuide&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.url, url) || other.url == url)&&(identical(other.modified, modified) || other.modified == modified)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.matchedAttractionId, matchedAttractionId) || other.matchedAttractionId == matchedAttractionId)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.fileExt, fileExt) || other.fileExt == fileExt)&&(identical(other.localFilePath, localFilePath) || other.localFilePath == localFilePath));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,title,url,modified,isDownloaded,summary,fileExt,localFilePath);
+int get hashCode => Object.hash(runtimeType,id,title,url,modified,isDownloaded,matchedAttractionId,summary,fileExt,localFilePath);
 
 @override
 String toString() {
-  return 'AudioGuide(id: $id, title: $title, url: $url, modified: $modified, isDownloaded: $isDownloaded, summary: $summary, fileExt: $fileExt, localFilePath: $localFilePath)';
+  return 'AudioGuide(id: $id, title: $title, url: $url, modified: $modified, isDownloaded: $isDownloaded, matchedAttractionId: $matchedAttractionId, summary: $summary, fileExt: $fileExt, localFilePath: $localFilePath)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $AudioGuideCopyWith<$Res>  {
   factory $AudioGuideCopyWith(AudioGuide value, $Res Function(AudioGuide) _then) = _$AudioGuideCopyWithImpl;
 @useResult
 $Res call({
- int id, String title, String url, String modified, bool isDownloaded, String? summary, String? fileExt, String? localFilePath
+ int id, String title, String url, String modified, bool isDownloaded, int? matchedAttractionId, String? summary, String? fileExt, String? localFilePath
 });
 
 
@@ -62,14 +62,15 @@ class _$AudioGuideCopyWithImpl<$Res>
 
 /// Create a copy of AudioGuide
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? url = null,Object? modified = null,Object? isDownloaded = null,Object? summary = freezed,Object? fileExt = freezed,Object? localFilePath = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? url = null,Object? modified = null,Object? isDownloaded = null,Object? matchedAttractionId = freezed,Object? summary = freezed,Object? fileExt = freezed,Object? localFilePath = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String,modified: null == modified ? _self.modified : modified // ignore: cast_nullable_to_non_nullable
 as String,isDownloaded: null == isDownloaded ? _self.isDownloaded : isDownloaded // ignore: cast_nullable_to_non_nullable
-as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as bool,matchedAttractionId: freezed == matchedAttractionId ? _self.matchedAttractionId : matchedAttractionId // ignore: cast_nullable_to_non_nullable
+as int?,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as String?,fileExt: freezed == fileExt ? _self.fileExt : fileExt // ignore: cast_nullable_to_non_nullable
 as String?,localFilePath: freezed == localFilePath ? _self.localFilePath : localFilePath // ignore: cast_nullable_to_non_nullable
 as String?,
@@ -157,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  String? summary,  String? fileExt,  String? localFilePath)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  int? matchedAttractionId,  String? summary,  String? fileExt,  String? localFilePath)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AudioGuide() when $default != null:
-return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.summary,_that.fileExt,_that.localFilePath);case _:
+return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.matchedAttractionId,_that.summary,_that.fileExt,_that.localFilePath);case _:
   return orElse();
 
 }
@@ -178,10 +179,10 @@ return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  String? summary,  String? fileExt,  String? localFilePath)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  int? matchedAttractionId,  String? summary,  String? fileExt,  String? localFilePath)  $default,) {final _that = this;
 switch (_that) {
 case _AudioGuide():
-return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.summary,_that.fileExt,_that.localFilePath);case _:
+return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.matchedAttractionId,_that.summary,_that.fileExt,_that.localFilePath);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +199,10 @@ return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  String? summary,  String? fileExt,  String? localFilePath)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String title,  String url,  String modified,  bool isDownloaded,  int? matchedAttractionId,  String? summary,  String? fileExt,  String? localFilePath)?  $default,) {final _that = this;
 switch (_that) {
 case _AudioGuide() when $default != null:
-return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.summary,_that.fileExt,_that.localFilePath);case _:
+return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded,_that.matchedAttractionId,_that.summary,_that.fileExt,_that.localFilePath);case _:
   return null;
 
 }
@@ -213,7 +214,7 @@ return $default(_that.id,_that.title,_that.url,_that.modified,_that.isDownloaded
 
 
 class _AudioGuide implements AudioGuide {
-  const _AudioGuide({required this.id, required this.title, required this.url, required this.modified, required this.isDownloaded, this.summary, this.fileExt, this.localFilePath});
+  const _AudioGuide({required this.id, required this.title, required this.url, required this.modified, required this.isDownloaded, this.matchedAttractionId, this.summary, this.fileExt, this.localFilePath});
   
 
 @override final  int id;
@@ -221,6 +222,7 @@ class _AudioGuide implements AudioGuide {
 @override final  String url;
 @override final  String modified;
 @override final  bool isDownloaded;
+@override final  int? matchedAttractionId;
 @override final  String? summary;
 @override final  String? fileExt;
 @override final  String? localFilePath;
@@ -235,16 +237,16 @@ _$AudioGuideCopyWith<_AudioGuide> get copyWith => __$AudioGuideCopyWithImpl<_Aud
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AudioGuide&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.url, url) || other.url == url)&&(identical(other.modified, modified) || other.modified == modified)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.fileExt, fileExt) || other.fileExt == fileExt)&&(identical(other.localFilePath, localFilePath) || other.localFilePath == localFilePath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AudioGuide&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.url, url) || other.url == url)&&(identical(other.modified, modified) || other.modified == modified)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.matchedAttractionId, matchedAttractionId) || other.matchedAttractionId == matchedAttractionId)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.fileExt, fileExt) || other.fileExt == fileExt)&&(identical(other.localFilePath, localFilePath) || other.localFilePath == localFilePath));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,title,url,modified,isDownloaded,summary,fileExt,localFilePath);
+int get hashCode => Object.hash(runtimeType,id,title,url,modified,isDownloaded,matchedAttractionId,summary,fileExt,localFilePath);
 
 @override
 String toString() {
-  return 'AudioGuide(id: $id, title: $title, url: $url, modified: $modified, isDownloaded: $isDownloaded, summary: $summary, fileExt: $fileExt, localFilePath: $localFilePath)';
+  return 'AudioGuide(id: $id, title: $title, url: $url, modified: $modified, isDownloaded: $isDownloaded, matchedAttractionId: $matchedAttractionId, summary: $summary, fileExt: $fileExt, localFilePath: $localFilePath)';
 }
 
 
@@ -255,7 +257,7 @@ abstract mixin class _$AudioGuideCopyWith<$Res> implements $AudioGuideCopyWith<$
   factory _$AudioGuideCopyWith(_AudioGuide value, $Res Function(_AudioGuide) _then) = __$AudioGuideCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String title, String url, String modified, bool isDownloaded, String? summary, String? fileExt, String? localFilePath
+ int id, String title, String url, String modified, bool isDownloaded, int? matchedAttractionId, String? summary, String? fileExt, String? localFilePath
 });
 
 
@@ -272,14 +274,15 @@ class __$AudioGuideCopyWithImpl<$Res>
 
 /// Create a copy of AudioGuide
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? url = null,Object? modified = null,Object? isDownloaded = null,Object? summary = freezed,Object? fileExt = freezed,Object? localFilePath = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? url = null,Object? modified = null,Object? isDownloaded = null,Object? matchedAttractionId = freezed,Object? summary = freezed,Object? fileExt = freezed,Object? localFilePath = freezed,}) {
   return _then(_AudioGuide(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String,modified: null == modified ? _self.modified : modified // ignore: cast_nullable_to_non_nullable
 as String,isDownloaded: null == isDownloaded ? _self.isDownloaded : isDownloaded // ignore: cast_nullable_to_non_nullable
-as bool,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as bool,matchedAttractionId: freezed == matchedAttractionId ? _self.matchedAttractionId : matchedAttractionId // ignore: cast_nullable_to_non_nullable
+as int?,summary: freezed == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
 as String?,fileExt: freezed == fileExt ? _self.fileExt : fileExt // ignore: cast_nullable_to_non_nullable
 as String?,localFilePath: freezed == localFilePath ? _self.localFilePath : localFilePath // ignore: cast_nullable_to_non_nullable
 as String?,

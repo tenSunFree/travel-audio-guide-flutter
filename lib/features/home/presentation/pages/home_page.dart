@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/nearby/location_controller.dart';
+import '../../../../core/nearby/location_fallback_card.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/common_app_bar.dart';
+import '../../di/home_providers.dart';
 import '../../domain/entities/home_state.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/hero_recommend_card.dart';
@@ -18,7 +22,6 @@ import '../widgets/recommend_list_tile.dart';
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
-  // Tool: HomePeriod → timeSlot query value
   static String _timeSlotValue(HomePeriod period) {
     return switch (period) {
       HomePeriod.morning => 'morning',
@@ -28,7 +31,6 @@ class HomePage extends ConsumerWidget {
     };
   }
 
-  // Tools: HomePeriod → Show Title
   static String _heroSectionTitle(HomePeriod period) {
     return switch (period) {
       HomePeriod.morning => '早上推薦',
@@ -38,13 +40,12 @@ class HomePage extends ConsumerWidget {
     };
   }
 
-  // Open the attraction/activity details page
   void _openRecommendDetail(BuildContext context, HomeRecommendCard card) {
     switch (card.type) {
       case HomeRecommendType.attraction:
         final attraction = card.attraction;
         if (attraction == null) {
-          _showErrorSnackBar(context, '找不到景點詳細資料');
+          _showError(context, '找不到景點詳細資料');
           return;
         }
         context.push(
@@ -54,7 +55,7 @@ class HomePage extends ConsumerWidget {
       case HomeRecommendType.activity:
         final activity = card.activity;
         if (activity == null) {
-          _showErrorSnackBar(context, '找不到活動詳細資料');
+          _showError(context, '找不到活動詳細資料');
           return;
         }
         context.push(
@@ -66,7 +67,7 @@ class HomePage extends ConsumerWidget {
     }
   }
 
-  void _showErrorSnackBar(BuildContext context, String message) {
+  void _showError(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
@@ -76,28 +77,35 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(homeControllerProvider);
     final controller = ref.read(homeControllerProvider.notifier);
+    final nearbyState = ref.watch(nearbyHomeControllerProvider);
+    final nearbyController = ref.read(nearbyHomeControllerProvider.notifier);
+    final locState = ref.watch(locationControllerProvider);
+    final locController = ref.read(locationControllerProvider.notifier);
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
       appBar: CommonAppBar(
         title: '首頁',
         actions: [
           IconButton(
-            onPressed: () {
-              // Homepage Filter Settings
-            },
+            onPressed: () {},
             icon: const Icon(Icons.tune),
             tooltip: '首頁設定',
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => controller.changePeriod(state.selectedPeriod),
+        onRefresh: () async {
+          controller.changePeriod(state.selectedPeriod);
+          await nearbyController.refresh();
+        },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            // Subtitle
             SliverToBoxAdapter(
               child: HomeSubtitle(subtitle: '${state.title}・${state.subtitle}'),
             ),
+            // Rainy mode toggle
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
@@ -107,6 +115,7 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
             ),
+            // Period chips
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
@@ -116,6 +125,7 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
             ),
+            // Main content / skeleton / error
             if (state.isLoading)
               const SliverToBoxAdapter(child: HomeSkeleton())
             else if (state.errorMessage != null)
@@ -126,7 +136,7 @@ class HomePage extends ConsumerWidget {
                 ),
               )
             else ...[
-              // Recommended time slots: View all → /attractions?timeSlot=xxx
+              // Hero section
               SliverToBoxAdapter(
                 child: HomeSectionTitle(
                   title: _heroSectionTitle(state.selectedPeriod),
@@ -156,7 +166,7 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              // You can now go to: View all → /attractions?openNow=true
+              // Available now section
               SliverToBoxAdapter(
                 child: HomeSectionTitle(
                   title: '現在可去',
@@ -184,7 +194,7 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              // Activity Recommendation: View All → /activities?activityStatus=ongoing
+              // Activity section
               SliverToBoxAdapter(
                 child: HomeSectionTitle(
                   title: '活動推薦',
@@ -213,8 +223,172 @@ class HomePage extends ConsumerWidget {
                     child: HomeEmptyCard(message: '目前沒有活動推薦'),
                   ),
                 ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+              // Nearby section
+              if (!nearbyState.hasLocation) ...[
+                // Not yet enabled → show the fallback card
+                SliverToBoxAdapter(
+                  child: LocationFallbackCard(
+                    permissionState: locState.permissionState,
+                    isLoading: nearbyState.isLoading,
+                    onRequestLocation: () => nearbyController.enableNearby(),
+                    onOpenSettings: () => locController.openAppSettings(),
+                    onOpenLocationService: () =>
+                        locController.openLocationSettings(),
+                    onBrowseAll: () =>
+                        context.push(AppRoutes.attractionsPath()),
+                  ),
+                ),
+              ] else ...[
+                // Nearby attractions
+                SliverToBoxAdapter(
+                  child: HomeSectionTitle(
+                    title: '附近景點',
+                    action: '查看全部',
+                    onActionTap: () =>
+                        context.push(AppRoutes.attractionsPath()),
+                  ),
+                ),
+                if (nearbyState.nearbyAttractions.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: HomeEmptyCard(message: '附近沒有找到景點'),
+                    ),
+                  )
+                else
+                  SliverList.builder(
+                    itemCount: nearbyState.nearbyAttractions.length,
+                    itemBuilder: (context, index) {
+                      final item = nearbyState.nearbyAttractions[index];
+                      final locPoint = ref
+                          .read(locationControllerProvider)
+                          .point;
+                      // Build distance label for the tile subtitle
+                      String? distLabel;
+                      if (locPoint != null &&
+                          NearbyUtils.isValidCoordinate(
+                            item.nlat,
+                            item.elong,
+                          )) {
+                        final m = NearbyUtils.distanceMeters(
+                          fromLat: locPoint.latitude,
+                          fromLng: locPoint.longitude,
+                          toLat: item.nlat!,
+                          toLng: item.elong!,
+                        );
+                        distLabel = NearbyUtils.formatDistance(m);
+                      }
+                      return _NearbyAttractionTile(
+                        name: item.name,
+                        distric: item.distric,
+                        distanceLabel: distLabel,
+                        imageUrl: item.images.isNotEmpty
+                            ? item.images.first.src
+                            : null,
+                        onTap: () => context.push(
+                          AppRoutes.attractionDetailPath(item.id),
+                          extra: item,
+                        ),
+                      );
+                    },
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
+              ],
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Private tile widgets — lightweight, home-screen only
+class _NearbyAttractionTile extends StatelessWidget {
+  const _NearbyAttractionTile({
+    required this.name,
+    required this.distric,
+    required this.distanceLabel,
+    required this.imageUrl,
+    required this.onTap,
+  });
+
+  final String name;
+  final String distric;
+  final String? distanceLabel;
+  final String? imageUrl;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = <String>[
+      ?distanceLabel,
+      if (distric.trim().isNotEmpty) distric.trim(),
+    ].join('  ·  ');
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Row(
+          children: [
+            // Leading icon / image
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: imageUrl != null
+                  ? Image.network(
+                      imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.place_outlined,
+                        color: AppColors.textHint,
+                      ),
+                    )
+                  : const Icon(Icons.place_outlined, color: AppColors.textHint),
+            ),
+            const SizedBox(width: 12),
+            // Text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (meta.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textCaption,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColors.textHint,
+            ),
           ],
         ),
       ),

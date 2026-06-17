@@ -26,9 +26,10 @@ class AppRoutes {
   // Homepage (Tab root page)
   static const home = '/';
 
-  // List pages (with optional filter parameters)
+  // List pages
   static const attractions = '/attractions';
   static const activities = '/activities';
+  static const audioGuides = '/audio-guides';
 
   // Detail pages
   static const attractionDetail = '/attractions/:id';
@@ -38,7 +39,7 @@ class AppRoutes {
   // Debug
   static const appLog = '/debug/log';
 
-  /// Path to the attractions list page (supports timeSlot / openNow filters)
+  /// Attractions list — supports timeSlot / openNow filters
   static String attractionsPath({String? timeSlot, bool openNow = false}) {
     final query = <String, String>{
       if (timeSlot != null && timeSlot.isNotEmpty) 'timeSlot': timeSlot,
@@ -50,7 +51,7 @@ class AppRoutes {
     ).toString();
   }
 
-  /// Path to the activities list page (supports activityStatus filter)
+  /// Activities list — supports activityStatus filter
   static String activitiesPath({String? activityStatus}) {
     final query = <String, String>{
       if (activityStatus != null && activityStatus.isNotEmpty)
@@ -62,6 +63,9 @@ class AppRoutes {
     ).toString();
   }
 
+  /// Audio guides list — switches to the audio guide tab
+  static String audioGuidesPath() => audioGuides;
+
   static String attractionDetailPath(int id) => '/attractions/$id';
 
   static String activityDetailPath(int id) => '/activities/$id';
@@ -70,28 +74,17 @@ class AppRoutes {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // ValueNotifier acts as a bridge to GoRouter's refreshListenable.
-  // GoRouter cannot directly listen to Riverpod providers; it connects indirectly through this bridge.
   final notifier = ValueNotifier<bool>(ref.read(onboardingProvider));
-  // When the onboardingProvider state changes (after completeOnboarding() is called),
-  // Synchronously update the notifier → trigger GoRouter to recalculate the redirect.
-  // WelcomePage does not need to call context.go() itself; GoRouter handles it automatically.
   ref.listen<bool>(onboardingProvider, (_, next) => notifier.value = next);
-  // Clean up ValueNotifier when Provider disposes to prevent memory leaks.
   ref.onDispose(notifier.dispose);
   return GoRouter(
-    // The app always starts from /splash.
-    // After the SplashPage animation ends, it will redirect to /welcome or / depending on hasSeenWelcome.
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: kDebugMode,
-    // Retain the original Sentry and Analytics observers.
     observers: [SentryNavigatorObserver(), AnalyticsService.observer],
-    // refreshListenable makes GoRouter rerun the redirect when the notifier changes.
     refreshListenable: notifier,
     redirect: (context, state) {
       final hasSeen = notifier.value;
       final location = state.matchedLocation;
-      // Welcome to view only once, If already seen it, please block it.
       if (hasSeen && location == AppRoutes.welcome) {
         return AppRoutes.home;
       }
@@ -107,13 +100,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.welcome,
         builder: (context, state) => const WelcomePage(),
       ),
-      // Main app
-      // Homepage (Tab root page)
+      // Home
       GoRoute(
         path: AppRoutes.home,
         builder: (context, state) => const MainTabPage(),
       ),
-      // Attractions list (supports timeSlot / openNow query parameters)
+      // Attractions list
       // Must be placed before /attractions/:id
       GoRoute(
         path: AppRoutes.attractions,
@@ -126,7 +118,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      // Activities list (supports activityStatus query parameter)
+      // Activities list
       // Must be placed before /activities/:id
       GoRoute(
         path: AppRoutes.activities,
@@ -136,6 +128,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             initialIndex: 2,
             activityInitialStatus: query['activityStatus'],
           );
+        },
+      ),
+      // Audio guides list
+      // Must be placed before /audio-guides/:id
+      GoRoute(
+        path: AppRoutes.audioGuides,
+        builder: (context, state) {
+          return const MainTabPage(initialIndex: 1);
         },
       ),
       // Detail pages

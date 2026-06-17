@@ -3,13 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/monitoring/monitoring_service.dart';
+import '../../../../core/nearby/nearby_models.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/sync/app_sync_service.dart';
 import '../../../../core/sync/sync_providers.dart';
+import '../../../attraction/domain/entities/attraction.dart';
 import '../../di/audio_guide_providers.dart';
 import '../../domain/entities/audio_guide.dart';
 import '../../domain/usecases/download_audio_guide_usecase.dart';
 import '../enums/sort_filter_enums.dart';
 
+// State
 class AudioGuideListState {
   const AudioGuideListState({
     required this.allItems,
@@ -24,6 +28,10 @@ class AudioGuideListState {
     required this.sortOrder,
     required this.filterType,
     required this.isSyncing,
+    required this.distanceFilter,
+    required this.attractions,
+    this.userLat,
+    this.userLng,
   });
 
   factory AudioGuideListState.initial() {
@@ -40,6 +48,8 @@ class AudioGuideListState {
       sortOrder: SortOrder.dateNewest,
       filterType: FilterType.all,
       isSyncing: true,
+      distanceFilter: DistanceFilter.unlimited,
+      attractions: [],
     );
   }
 
@@ -55,34 +65,116 @@ class AudioGuideListState {
   final SortOrder sortOrder;
   final FilterType filterType;
   final bool isSyncing;
+  final DistanceFilter distanceFilter;
+  final List<Attraction> attractions;
+  final double? userLat;
+  final double? userLng;
 
   bool get isDefaultFilter =>
-      sortOrder == SortOrder.dateNewest && filterType == FilterType.all;
+      sortOrder == SortOrder.dateNewest &&
+      filterType == FilterType.all &&
+      distanceFilter == DistanceFilter.unlimited;
 
+  // Core compute
   static List<AudioGuide> computeDisplayItems(
     List<AudioGuide> rawItems,
     SortOrder sort,
-    FilterType filter,
-  ) {
+    FilterType filter, {
+    required DistanceFilter distanceFilter,
+    required List<Attraction> attractions,
+    double? userLat,
+    double? userLng,
+  }) {
+    // Download filter
     final filtered = switch (filter) {
       FilterType.all => [...rawItems],
       FilterType.downloaded => rawItems.where((g) => g.isDownloaded).toList(),
       FilterType.notDownloaded =>
         rawItems.where((g) => !g.isDownloaded).toList(),
     };
+    // Distance filter
+    final distanceFiltered = distanceFilter == DistanceFilter.unlimited
+        ? filtered
+        : filtered.where((guide) {
+            if (userLat == null || userLng == null) return false;
+            final d = distanceForGuide(
+              guide: guide,
+              attractions: attractions,
+              userLat: userLat,
+              userLng: userLng,
+            );
+            return NearbyUtils.passDistanceFilter(
+              distanceMeters: d,
+              filter: distanceFilter,
+            );
+          }).toList();
+    // Sort
     switch (sort) {
       case SortOrder.dateNewest:
-        filtered.sort((a, b) => b.modified.compareTo(a.modified));
+        distanceFiltered.sort((a, b) => b.modified.compareTo(a.modified));
       case SortOrder.dateOldest:
-        filtered.sort((a, b) => a.modified.compareTo(b.modified));
+        distanceFiltered.sort((a, b) => a.modified.compareTo(b.modified));
       case SortOrder.nameAZ:
-        filtered.sort((a, b) => a.title.compareTo(b.title));
+        distanceFiltered.sort((a, b) => a.title.compareTo(b.title));
       case SortOrder.downloadedFirst:
-        filtered.sort(
+        distanceFiltered.sort(
           (a, b) => (b.isDownloaded ? 1 : 0) - (a.isDownloaded ? 1 : 0),
         );
+      case SortOrder.distanceAsc:
+        if (userLat != null && userLng != null) {
+          distanceFiltered.sort((a, b) {
+            final ad =
+                distanceForGuide(
+                  guide: a,
+                  attractions: attractions,
+                  userLat: userLat,
+                  userLng: userLng,
+                ) ??
+                double.maxFinite;
+            final bd =
+                distanceForGuide(
+                  guide: b,
+                  attractions: attractions,
+                  userLat: userLat,
+                  userLng: userLng,
+                ) ??
+                double.maxFinite;
+            return ad.compareTo(bd);
+          });
+        }
     }
-    return filtered;
+
+    return distanceFiltered;
+  }
+
+  // Distance helper — public so Page can call it for the tile label.
+  // Uses matchedAttractionId → nearest related attraction coordinate.
+  // Returns null when no valid coordinate can be resolved.
+  static double? distanceForGuide({
+    required AudioGuide guide,
+    required List<Attraction> attractions,
+    required double userLat,
+    required double userLng,
+  }) {
+    final attractionId = guide.matchedAttractionId;
+    if (attractionId == null) return null;
+    Attraction? matched;
+    for (final a in attractions) {
+      if (a.id == attractionId) {
+        matched = a;
+        break;
+      }
+    }
+    if (matched == null) return null;
+    if (!NearbyUtils.isValidCoordinate(matched.nlat, matched.elong)) {
+      return null;
+    }
+    return NearbyUtils.distanceMeters(
+      fromLat: userLat,
+      fromLng: userLng,
+      toLat: matched.nlat!,
+      toLng: matched.elong!,
+    );
   }
 
   AudioGuideListState copyWith({
@@ -99,6 +191,10 @@ class AudioGuideListState {
     SortOrder? sortOrder,
     FilterType? filterType,
     bool? isSyncing,
+    DistanceFilter? distanceFilter,
+    List<Attraction>? attractions,
+    double? userLat,
+    double? userLng,
   }) {
     return AudioGuideListState(
       allItems: allItems ?? this.allItems,
@@ -115,10 +211,15 @@ class AudioGuideListState {
       sortOrder: sortOrder ?? this.sortOrder,
       filterType: filterType ?? this.filterType,
       isSyncing: isSyncing ?? this.isSyncing,
+      distanceFilter: distanceFilter ?? this.distanceFilter,
+      attractions: attractions ?? this.attractions,
+      userLat: userLat ?? this.userLat,
+      userLng: userLng ?? this.userLng,
     );
   }
 }
 
+// Controller
 class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   AudioGuideListController({
     required this.ref,
@@ -130,38 +231,63 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
 
   final Ref ref;
   final DownloadAudioGuideUseCase _downloadAudioGuideUseCase;
-  StreamSubscription<List<AudioGuide>>? _sub;
+  StreamSubscription<List<AudioGuide>>? _guideSub;
+  StreamSubscription<List<Attraction>>? _attractionSub;
 
   void _init() {
-    _sub = ref
+    // Watch audio guides
+    _guideSub = ref
         .read(appDatabaseProvider)
         .audioGuideDao
         .watchAll()
-        .listen(_onData);
+        .listen(_onGuideData);
+    // Watch attractions — needed for coordinate lookup
+    _attractionSub = ref
+        .read(appDatabaseProvider)
+        .attractionDao
+        .watchAll()
+        .listen(_onAttractionData);
     Future.microtask(() async {
       try {
         await ref.read(appSyncServiceProvider).syncAllIfNeeded();
       } catch (_) {
-        // syncAllIfNeeded internally reports through MonitoringService, so it's handled silently here.
       } finally {
-        if (mounted) {
-          state = state.copyWith(isSyncing: false);
-        }
+        if (mounted) state = state.copyWith(isSyncing: false);
       }
     });
   }
 
-  void _onData(List<AudioGuide> all) {
+  void _onGuideData(List<AudioGuide> all) {
     state = state.copyWith(
       allItems: all,
       items: AudioGuideListState.computeDisplayItems(
         all,
         state.sortOrder,
         state.filterType,
+        distanceFilter: state.distanceFilter,
+        attractions: state.attractions,
+        userLat: state.userLat,
+        userLng: state.userLng,
       ),
       total: all.length,
       isInitialLoading: false,
       clearErrorMessage: true,
+    );
+  }
+
+  void _onAttractionData(List<Attraction> attractions) {
+    if (!mounted) return;
+    state = state.copyWith(
+      attractions: attractions,
+      items: AudioGuideListState.computeDisplayItems(
+        state.allItems,
+        state.sortOrder,
+        state.filterType,
+        distanceFilter: state.distanceFilter,
+        attractions: attractions,
+        userLat: state.userLat,
+        userLng: state.userLng,
+      ),
     );
   }
 
@@ -179,8 +305,28 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
 
   Future<void> loadMore() async {}
 
-  void applySortFilter(SortOrder sort, FilterType filter) {
-    // Tracking: User-applied filters
+  /// Called when location is obtained — updates coords and re-filters.
+  void applyLocation(double lat, double lng) {
+    state = state.copyWith(
+      userLat: lat,
+      userLng: lng,
+      items: AudioGuideListState.computeDisplayItems(
+        state.allItems,
+        state.sortOrder,
+        state.filterType,
+        distanceFilter: state.distanceFilter,
+        attractions: state.attractions,
+        userLat: lat,
+        userLng: lng,
+      ),
+    );
+  }
+
+  void applySortFilter(
+    SortOrder sort,
+    FilterType filter, {
+    DistanceFilter distanceFilter = DistanceFilter.unlimited,
+  }) {
     AnalyticsService.logAudioGuideFiltered(
       sortOrder: sort.name,
       filterType: filter.name,
@@ -188,10 +334,15 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
     state = state.copyWith(
       sortOrder: sort,
       filterType: filter,
+      distanceFilter: distanceFilter,
       items: AudioGuideListState.computeDisplayItems(
         state.allItems,
         sort,
         filter,
+        distanceFilter: distanceFilter,
+        attractions: state.attractions,
+        userLat: state.userLat,
+        userLng: state.userLng,
       ),
     );
   }
@@ -199,17 +350,10 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   void resetSortFilter() =>
       applySortFilter(SortOrder.dateNewest, FilterType.all);
 
-  // Critical business path: Audio download
-  // - breadcrumb records download start/success
-  // - monitorFuture establishes a performance transaction (operation: audio.download)
-  // - captureException reports a failure (including guide_id / title / url)
+  // Download (unchanged logic, preserved exactly)
   Future<String?> downloadGuide(AudioGuide guide) async {
-    // Prevent duplicate downloads
-    if (state.downloadingIds.contains(guide.id)) {
-      return '該檔案正在下載中';
-    }
+    if (state.downloadingIds.contains(guide.id)) return '該檔案正在下載中';
     state = state.copyWith(downloadingIds: {...state.downloadingIds, guide.id});
-    // breadcrumb: Record the start of download
     await MonitoringService.addBreadcrumb(
       message: 'Start audio guide download',
       category: 'audio.download',
@@ -219,13 +363,11 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
         'url': guide.url,
       },
     );
-    // Tracking: Download starts
     await AnalyticsService.logAudioGuideDownloadStart(
       id: guide.id,
       title: guide.title,
     );
     try {
-      // performance transaction：audio.download
       final localPath = await MonitoringService.monitorFuture<String>(
         name: 'Audio Guide Download',
         operation: 'audio.download',
@@ -237,18 +379,15 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
         },
         action: () => _downloadAudioGuideUseCase(guide),
       );
-      // Write back to Drift DB (mark as downloaded + save to local path)
       await ref
           .read(appDatabaseProvider)
           .audioGuideDao
           .markAsDownloaded(id: guide.id, localFilePath: localPath);
-      // breadcrumb: Record successful download
       await MonitoringService.addBreadcrumb(
         message: 'Audio guide download success',
         category: 'audio.download',
         data: {'guide_id': guide.id, 'local_path': localPath},
       );
-      // Tracking: Download successful
       await AnalyticsService.logAudioGuideDownloadSuccess(
         id: guide.id,
         title: guide.title,
@@ -265,7 +404,6 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
           'url': guide.url,
         },
       );
-      // Tracking: Download failed
       await AnalyticsService.logAudioGuideDownloadFailure(
         id: guide.id,
         title: guide.title,
@@ -280,7 +418,8 @@ class AudioGuideListController extends StateNotifier<AudioGuideListState> {
 
   @override
   void dispose() {
-    _sub?.cancel().ignore();
+    _guideSub?.cancel().ignore();
+    _attractionSub?.cancel().ignore();
     super.dispose();
   }
 }

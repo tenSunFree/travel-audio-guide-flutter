@@ -76,6 +76,7 @@ class AudioGuideDao extends DatabaseAccessor<AppDatabase>
     fileExt: r.fileExt,
     modified: r.modified,
     isDownloaded: r.isDownloaded,
+    matchedAttractionId: r.matchedAttractionId,
     localFilePath: r.localFilePath,
   );
 
