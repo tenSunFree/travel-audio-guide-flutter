@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/database/database_provider.dart';
+import '../../../../core/nearby/nearby_models.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/sync/app_sync_service.dart';
 import '../../../../core/sync/sync_providers.dart';
 import '../../../home/domain/services/open_time_parser.dart';
@@ -29,6 +30,7 @@ class AttractionListState {
     this.isSyncing,
     this.openNowOnly = false,
     this.timeSlotFilter = AttractionTimeSlotFilter.all,
+    this.distanceFilter = DistanceFilter.unlimited,
   });
 
   final List<Attraction> allItems;
@@ -49,11 +51,13 @@ class AttractionListState {
   final bool? isSyncing;
   final bool openNowOnly;
   final AttractionTimeSlotFilter timeSlotFilter;
+  final DistanceFilter distanceFilter;
 
   bool get isDefaultFilter =>
       !openNowOnly &&
       timeSlotFilter == AttractionTimeSlotFilter.all &&
       sortOrder == AttractionSortOrder.apiOrder &&
+      distanceFilter == DistanceFilter.unlimited &&
       selectedCategoryIds.isEmpty &&
       distric.isEmpty &&
       selectedTargets.isEmpty &&
@@ -92,34 +96,60 @@ class AttractionListState {
     required Set<AttractionFacilityFilter> selectedFacilities,
     required bool openNowOnly,
     required AttractionTimeSlotFilter timeSlotFilter,
+    required DistanceFilter distanceFilter,
     double? userLat,
     double? userLng,
   }) {
     final now = DateTime.now();
     const parser = OpenTimeParser();
     final filtered = source.where((item) {
+      // Open now filter
       if (openNowOnly) {
         final result = parser.parse(item.openTime, now);
         if (!result.isOpenNow) return false;
       }
+      // Time slot filter
       if (timeSlotFilter != AttractionTimeSlotFilter.all) {
         if (!_isRecommendedForTimeSlot(item, timeSlotFilter)) return false;
         if (!_isOpenDuringTimeSlot(item.openTime, timeSlotFilter)) return false;
       }
+      // Category filter
       if (selectedCategoryIds.isNotEmpty) {
         final itemCatIds = item.categories.map((c) => c.id).toSet();
         if (!selectedCategoryIds.any(itemCatIds.contains)) return false;
       }
+      // District filter
       if (distric.isNotEmpty && item.distric.trim() != distric) return false;
+      // Target filter
       if (selectedTargets.isNotEmpty) {
         final itemTargetIds = item.targets.map((t) => t.id).toSet();
         if (!selectedTargets.any((f) => itemTargetIds.contains(f.apiId))) {
           return false;
         }
       }
+      // Facility filter
       if (selectedFacilities.isNotEmpty) {
         final itemFriendlyIds = item.friendlies.map((f) => f.id).toSet();
         if (!selectedFacilities.any((f) => itemFriendlyIds.contains(f.apiId))) {
+          return false;
+        }
+      }
+      // Distance filter — items without valid coords are excluded
+      if (distanceFilter != DistanceFilter.unlimited) {
+        if (userLat == null || userLng == null) return false;
+        if (!NearbyUtils.isValidCoordinate(item.nlat, item.elong)) {
+          return false;
+        }
+        final d = NearbyUtils.distanceMeters(
+          fromLat: userLat,
+          fromLng: userLng,
+          toLat: item.nlat!,
+          toLng: item.elong!,
+        );
+        if (!NearbyUtils.passDistanceFilter(
+          distanceMeters: d,
+          filter: distanceFilter,
+        )) {
           return false;
         }
       }
@@ -144,6 +174,7 @@ class AttractionListState {
     return filtered;
   }
 
+  // private helpers
   static bool _isRecommendedForTimeSlot(
     Attraction item,
     AttractionTimeSlotFilter slot,
@@ -221,16 +252,21 @@ class AttractionListState {
     return result.isOpenNow;
   }
 
+  /// Haversine distance in metres; returns [double.maxFinite] for invalid coords
+  /// so that items without coordinates sort to the end.
   static double _distance(
     double userLat,
     double userLng,
     double? lat,
     double? lng,
   ) {
-    if (lat == null || lng == null) return double.maxFinite;
-    final dlat = userLat - lat;
-    final dlng = userLng - lng;
-    return math.sqrt(dlat * dlat + dlng * dlng);
+    if (!NearbyUtils.isValidCoordinate(lat, lng)) return double.maxFinite;
+    return NearbyUtils.distanceMeters(
+      fromLat: userLat,
+      fromLng: userLng,
+      toLat: lat!,
+      toLng: lng!,
+    );
   }
 
   AttractionListState copyWith({
@@ -253,6 +289,7 @@ class AttractionListState {
     bool? isSyncing,
     bool? openNowOnly,
     AttractionTimeSlotFilter? timeSlotFilter,
+    DistanceFilter? distanceFilter,
   }) {
     return AttractionListState(
       allItems: allItems ?? this.allItems,
@@ -275,6 +312,7 @@ class AttractionListState {
       isSyncing: isSyncing ?? this.isSyncing,
       openNowOnly: openNowOnly ?? this.openNowOnly,
       timeSlotFilter: timeSlotFilter ?? this.timeSlotFilter,
+      distanceFilter: distanceFilter ?? this.distanceFilter,
     );
   }
 }
@@ -299,9 +337,7 @@ class AttractionListController extends StateNotifier<AttractionListState> {
         await ref.read(appSyncServiceProvider).syncAllIfNeeded();
       } catch (_) {
       } finally {
-        if (mounted) {
-          state = state.copyWith(isSyncing: false);
-        }
+        if (mounted) state = state.copyWith(isSyncing: false);
       }
     });
   }
@@ -316,6 +352,7 @@ class AttractionListController extends StateNotifier<AttractionListState> {
       selectedFacilities: state.selectedFacilities,
       openNowOnly: state.openNowOnly,
       timeSlotFilter: state.timeSlotFilter,
+      distanceFilter: state.distanceFilter,
       userLat: state.userLat,
       userLng: state.userLng,
     );
@@ -343,7 +380,27 @@ class AttractionListController extends StateNotifier<AttractionListState> {
 
   Future<void> loadMore() async {}
 
-  /// Apply filter to BottomSheet (enter all data)
+  /// Called when location is obtained — updates coords and re-filters.
+  void applyLocation(double lat, double lng) {
+    state = state.copyWith(
+      userLat: lat,
+      userLng: lng,
+      items: AttractionListState.computeDisplayItems(
+        state.allItems,
+        sortOrder: state.sortOrder,
+        selectedCategoryIds: state.selectedCategoryIds,
+        distric: state.distric,
+        selectedTargets: state.selectedTargets,
+        selectedFacilities: state.selectedFacilities,
+        openNowOnly: state.openNowOnly,
+        timeSlotFilter: state.timeSlotFilter,
+        distanceFilter: state.distanceFilter,
+        userLat: lat,
+        userLng: lng,
+      ),
+    );
+  }
+
   void applySortFilter({
     required AttractionSortOrder sortOrder,
     required Set<int> categoryIds,
@@ -352,10 +409,11 @@ class AttractionListController extends StateNotifier<AttractionListState> {
     required Set<AttractionFacilityFilter> facilities,
     bool? openNowOnly,
     AttractionTimeSlotFilter? timeSlotFilter,
+    DistanceFilter? distanceFilter,
   }) {
     final nextOpenNow = openNowOnly ?? state.openNowOnly;
     final nextSlot = timeSlotFilter ?? state.timeSlotFilter;
-    // Tracking: Scenic Spot Filtering Criteria
+    final nextDistance = distanceFilter ?? state.distanceFilter;
     AnalyticsService.logAttractionFiltered(
       sortOrder: sortOrder.name,
       openNow: nextOpenNow,
@@ -371,6 +429,7 @@ class AttractionListController extends StateNotifier<AttractionListState> {
       selectedFacilities: facilities,
       openNowOnly: nextOpenNow,
       timeSlotFilter: nextSlot,
+      distanceFilter: nextDistance,
       items: AttractionListState.computeDisplayItems(
         state.allItems,
         sortOrder: sortOrder,
@@ -380,13 +439,13 @@ class AttractionListController extends StateNotifier<AttractionListState> {
         selectedFacilities: facilities,
         openNowOnly: nextOpenNow,
         timeSlotFilter: nextSlot,
+        distanceFilter: nextDistance,
         userLat: state.userLat,
         userLng: state.userLng,
       ),
     );
   }
 
-  /// When the homepage entry point brings parameters
   void applyHomeEntryFilter({
     bool openNowOnly = false,
     AttractionTimeSlotFilter timeSlotFilter = AttractionTimeSlotFilter.all,
@@ -403,13 +462,13 @@ class AttractionListController extends StateNotifier<AttractionListState> {
         selectedFacilities: state.selectedFacilities,
         openNowOnly: openNowOnly,
         timeSlotFilter: timeSlotFilter,
+        distanceFilter: state.distanceFilter,
         userLat: state.userLat,
         userLng: state.userLng,
       ),
     );
   }
 
-  /// Reset all filter criteria
   void resetFilter() {
     state = state.copyWith(
       sortOrder: AttractionSortOrder.apiOrder,
@@ -419,6 +478,7 @@ class AttractionListController extends StateNotifier<AttractionListState> {
       selectedFacilities: {},
       openNowOnly: false,
       timeSlotFilter: AttractionTimeSlotFilter.all,
+      distanceFilter: DistanceFilter.unlimited,
       items: AttractionListState.computeDisplayItems(
         state.allItems,
         sortOrder: AttractionSortOrder.apiOrder,
@@ -428,6 +488,7 @@ class AttractionListController extends StateNotifier<AttractionListState> {
         selectedFacilities: {},
         openNowOnly: false,
         timeSlotFilter: AttractionTimeSlotFilter.all,
+        distanceFilter: DistanceFilter.unlimited,
         userLat: state.userLat,
         userLng: state.userLng,
       ),

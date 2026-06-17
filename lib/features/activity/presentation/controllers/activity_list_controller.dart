@@ -1,12 +1,21 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/database_provider.dart';
+import '../../../../core/nearby/nearby_models.dart';
+import '../../../../core/nearby/nearby_utils.dart';
 import '../../../../core/sync/app_sync_service.dart';
 import '../../../../core/sync/sync_providers.dart';
 import '../../domain/entities/activity.dart';
 import '../enums/activity_sort_filter_enums.dart';
 
-// State
+enum _ActivityTimeState {
+  ongoing, // has precise times, now is between begin and end
+  upcomingSoon, // has precise times, starts within 2 hours
+  todayOnly, // date-range only, today is within range
+  ended,
+  unknown,
+}
+
 class ActivityListState {
   const ActivityListState({
     required this.allItems,
@@ -22,6 +31,9 @@ class ActivityListState {
     required this.feeFilter,
     required this.distric,
     required this.isSyncing,
+    required this.distanceFilter,
+    this.userLat,
+    this.userLng,
   });
 
   factory ActivityListState.initial() {
@@ -39,6 +51,7 @@ class ActivityListState {
       feeFilter: ActivityFeeFilter.all,
       distric: '',
       isSyncing: true,
+      distanceFilter: DistanceFilter.unlimited,
     );
   }
 
@@ -55,12 +68,16 @@ class ActivityListState {
   final ActivityFeeFilter feeFilter;
   final String distric;
   final bool isSyncing;
+  final DistanceFilter distanceFilter;
+  final double? userLat;
+  final double? userLng;
 
   bool get isDefaultFilter =>
       sortOrder == ActivitySortOrder.beginAsc &&
       statusFilter == ActivityStatusFilter.all &&
       feeFilter == ActivityFeeFilter.all &&
-      distric.isEmpty;
+      distric.isEmpty &&
+      distanceFilter == DistanceFilter.unlimited;
 
   List<String> get availableDistrics {
     final seen = <String>{};
@@ -73,52 +90,59 @@ class ActivityListState {
     return result;
   }
 
-  // Core: Filtering + Sorting
   static List<Activity> computeDisplayItems(
     List<Activity> rawItems,
     ActivitySortOrder sort,
     ActivityStatusFilter status,
     ActivityFeeFilter fee,
-    String distric,
-  ) {
+    String distric, {
+    required DistanceFilter distanceFilter,
+    double? userLat,
+    double? userLng,
+  }) {
     final now = DateTime.now();
-
     final filtered = rawItems.where((a) {
-      // Activity Status Filter
+      // Status filter
       if (status != ActivityStatusFilter.all) {
-        DateTime? begin;
-        DateTime? end;
-        try {
-          if (a.begin.isNotEmpty) begin = DateTime.parse(a.begin);
-          if (a.end.isNotEmpty) end = DateTime.parse(a.end);
-        } catch (_) {}
+        final ts = _activityTimeState(a, now);
         final pass = switch (status) {
           ActivityStatusFilter.all => true,
-          // Now available: startTime <= now <= endTime
-          ActivityStatusFilter.ongoing =>
-            begin != null &&
-                end != null &&
-                !now.isBefore(begin) &&
-                !now.isAfter(end),
-          // Coming soon: startTime > now and within 7 days
+          ActivityStatusFilter.ongoing => ts == _ActivityTimeState.ongoing,
           ActivityStatusFilter.upcoming =>
-            begin != null &&
-                begin.isAfter(now) &&
-                begin.isBefore(now.add(const Duration(days: 7))),
+            ts == _ActivityTimeState.upcomingSoon,
+          ActivityStatusFilter.today => ts == _ActivityTimeState.todayOnly,
         };
         if (!pass) return false;
       }
-      // Fee filtering (empty ticket = free)
+      // Fee filter
       if (fee != ActivityFeeFilter.all) {
         final isFree = a.ticket.trim().isEmpty;
         if (fee == ActivityFeeFilter.free && !isFree) return false;
         if (fee == ActivityFeeFilter.paid && isFree) return false;
       }
-      // Administrative District Filtering
+      // District filter
       if (distric.isNotEmpty && a.distric.trim() != distric) return false;
+      // Distance filter
+      if (distanceFilter != DistanceFilter.unlimited) {
+        if (userLat == null || userLng == null) return false;
+        final lat = double.tryParse(a.nlat);
+        final lng = double.tryParse(a.elong);
+        if (!NearbyUtils.isValidCoordinate(lat, lng)) return false;
+        final d = NearbyUtils.distanceMeters(
+          fromLat: userLat,
+          fromLng: userLng,
+          toLat: lat!,
+          toLng: lng!,
+        );
+        if (!NearbyUtils.passDistanceFilter(
+          distanceMeters: d,
+          filter: distanceFilter,
+        )) {
+          return false;
+        }
+      }
       return true;
     }).toList();
-    // Sort
     switch (sort) {
       case ActivitySortOrder.beginAsc:
         filtered.sort((a, b) => a.begin.compareTo(b.begin));
@@ -126,8 +150,77 @@ class ActivityListState {
         filtered.sort((a, b) => b.begin.compareTo(a.begin));
       case ActivitySortOrder.nameAZ:
         filtered.sort((a, b) => a.title.compareTo(b.title));
+      case ActivitySortOrder.distanceAsc:
+        if (userLat != null && userLng != null) {
+          filtered.sort((a, b) {
+            final ad = _activityDistance(userLat, userLng, a);
+            final bd = _activityDistance(userLat, userLng, b);
+            return ad.compareTo(bd);
+          });
+        }
     }
     return filtered;
+  }
+
+  // Time state helpers
+  static _ActivityTimeState _activityTimeState(Activity a, DateTime now) {
+    DateTime? begin;
+    DateTime? end;
+    try {
+      if (a.begin.isNotEmpty) begin = DateTime.parse(_cleanDate(a.begin));
+      if (a.end.isNotEmpty) end = DateTime.parse(_cleanDate(a.end));
+    } catch (_) {}
+    if (begin == null || end == null) return _ActivityTimeState.unknown;
+    final hasPrecise = _hasPreciseTime(begin) || _hasPreciseTime(end);
+    if (hasPrecise) {
+      if (!now.isBefore(begin) && !now.isAfter(end)) {
+        return _ActivityTimeState.ongoing;
+      }
+      if (begin.isAfter(now) &&
+          begin.difference(now) <= const Duration(hours: 2)) {
+        return _ActivityTimeState.upcomingSoon;
+      }
+      if (now.isAfter(end)) return _ActivityTimeState.ended;
+      return _ActivityTimeState.unknown;
+    }
+    // Date-range only
+    final today = DateTime(now.year, now.month, now.day);
+    final startDate = DateTime(begin.year, begin.month, begin.day);
+    final endDate = DateTime(end.year, end.month, end.day);
+    if (!today.isBefore(startDate) && !today.isAfter(endDate)) {
+      return _ActivityTimeState.todayOnly;
+    }
+    return _ActivityTimeState.unknown;
+  }
+
+  static bool _hasPreciseTime(DateTime dt) =>
+      dt.hour != 0 || dt.minute != 0 || dt.second != 0;
+
+  static String _cleanDate(String raw) =>
+      raw.replaceAll(' +08:00', '').replaceAll('/', '-').trim();
+
+  static double _activityDistance(double userLat, double userLng, Activity a) {
+    final lat = double.tryParse(a.nlat);
+    final lng = double.tryParse(a.elong);
+    if (!NearbyUtils.isValidCoordinate(lat, lng)) return double.maxFinite;
+    return NearbyUtils.distanceMeters(
+      fromLat: userLat,
+      fromLng: userLng,
+      toLat: lat!,
+      toLng: lng!,
+    );
+  }
+
+  // Public helper used by ActivityTile to build the status badge text.
+  // Returns null when no badge should be shown.
+  static String? activityStatusText(Activity a, DateTime now) {
+    final ts = _activityTimeState(a, now);
+    return switch (ts) {
+      _ActivityTimeState.ongoing => null,
+      _ActivityTimeState.upcomingSoon => '今天稍晚開始',
+      _ActivityTimeState.todayOnly => '今日活動',
+      _ => null,
+    };
   }
 
   ActivityListState copyWith({
@@ -145,6 +238,9 @@ class ActivityListState {
     ActivityFeeFilter? feeFilter,
     String? distric,
     bool? isSyncing,
+    DistanceFilter? distanceFilter,
+    double? userLat,
+    double? userLng,
   }) {
     return ActivityListState(
       allItems: allItems ?? this.allItems,
@@ -162,11 +258,13 @@ class ActivityListState {
       feeFilter: feeFilter ?? this.feeFilter,
       distric: distric ?? this.distric,
       isSyncing: isSyncing ?? this.isSyncing,
+      distanceFilter: distanceFilter ?? this.distanceFilter,
+      userLat: userLat ?? this.userLat,
+      userLng: userLng ?? this.userLng,
     );
   }
 }
 
-// Controller
 class ActivityListController extends StateNotifier<ActivityListState> {
   ActivityListController({required this.ref})
     : super(ActivityListState.initial()) {
@@ -183,9 +281,7 @@ class ActivityListController extends StateNotifier<ActivityListState> {
         await ref.read(appSyncServiceProvider).syncAllIfNeeded();
       } catch (_) {
       } finally {
-        if (mounted) {
-          state = state.copyWith(isLoadingMore: false);
-        }
+        if (mounted) state = state.copyWith(isLoadingMore: false);
       }
     });
   }
@@ -199,6 +295,9 @@ class ActivityListController extends StateNotifier<ActivityListState> {
         state.statusFilter,
         state.feeFilter,
         state.distric,
+        distanceFilter: state.distanceFilter,
+        userLat: state.userLat,
+        userLng: state.userLng,
       ),
       total: all.length,
       isInitialLoading: false,
@@ -219,24 +318,46 @@ class ActivityListController extends StateNotifier<ActivityListState> {
 
   Future<void> loadMore() async {}
 
-  /// Apply filter to BottomSheet
+  /// Called when location is obtained — updates coords and re-filters.
+  void applyLocation(double lat, double lng) {
+    state = state.copyWith(
+      userLat: lat,
+      userLng: lng,
+      items: ActivityListState.computeDisplayItems(
+        state.allItems,
+        state.sortOrder,
+        state.statusFilter,
+        state.feeFilter,
+        state.distric,
+        distanceFilter: state.distanceFilter,
+        userLat: lat,
+        userLng: lng,
+      ),
+    );
+  }
+
   void applySortFilter({
     required ActivitySortOrder sortOrder,
     required ActivityStatusFilter statusFilter,
     required ActivityFeeFilter feeFilter,
     required String distric,
+    required DistanceFilter distanceFilter,
   }) {
     state = state.copyWith(
       sortOrder: sortOrder,
       statusFilter: statusFilter,
       feeFilter: feeFilter,
       distric: distric,
+      distanceFilter: distanceFilter,
       items: ActivityListState.computeDisplayItems(
         state.allItems,
         sortOrder,
         statusFilter,
         feeFilter,
         distric,
+        distanceFilter: distanceFilter,
+        userLat: state.userLat,
+        userLng: state.userLng,
       ),
     );
   }
@@ -247,6 +368,7 @@ class ActivityListController extends StateNotifier<ActivityListState> {
       statusFilter: ActivityStatusFilter.all,
       feeFilter: ActivityFeeFilter.all,
       distric: '',
+      distanceFilter: DistanceFilter.unlimited,
     );
   }
 

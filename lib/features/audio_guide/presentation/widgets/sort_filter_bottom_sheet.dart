@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/nearby/nearby_models.dart';
 import '../enums/sort_filter_enums.dart';
 
 class SortFilterBottomSheet extends StatefulWidget {
@@ -6,10 +7,12 @@ class SortFilterBottomSheet extends StatefulWidget {
     super.key,
     required this.initialSortOrder,
     required this.initialFilterType,
+    required this.initialDistanceFilter,
   });
 
   final SortOrder initialSortOrder;
   final FilterType initialFilterType;
+  final DistanceFilter initialDistanceFilter;
 
   @override
   State<SortFilterBottomSheet> createState() => _SortFilterBottomSheetState();
@@ -18,24 +21,37 @@ class SortFilterBottomSheet extends StatefulWidget {
 class _SortFilterBottomSheetState extends State<SortFilterBottomSheet> {
   late SortOrder _sortOrder;
   late FilterType _filterType;
+  late DistanceFilter _distanceFilter;
 
   @override
   void initState() {
     super.initState();
     _sortOrder = widget.initialSortOrder;
     _filterType = widget.initialFilterType;
+    _distanceFilter = widget.initialDistanceFilter;
+  }
+
+  void _reset() {
+    setState(() {
+      _sortOrder = SortOrder.dateNewest;
+      _filterType = FilterType.all;
+      _distanceFilter = DistanceFilter.unlimited;
+    });
+  }
+
+  void _apply() {
+    Navigator.of(context).pop((_sortOrder, _filterType, _distanceFilter));
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
+          // Drag bar
           Container(
             margin: const EdgeInsets.only(top: 12),
             width: 40,
@@ -65,18 +81,43 @@ class _SortFilterBottomSheetState extends State<SortFilterBottomSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Sort section header
+                  // Download filter
+                  _SectionLabel(label: '下載狀態'),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                    child: Text(
-                      '排序',
-                      style: textTheme.labelLarge?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: FilterType.values.map((f) {
+                        return ChoiceChip(
+                          label: Text(f.label),
+                          selected: _filterType == f,
+                          onSelected: (_) => setState(() => _filterType = f),
+                        );
+                      }).toList(),
                     ),
                   ),
-                  // Sort options
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Distance
+                  _SectionLabel(label: '距離範圍'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: DistanceFilter.values.map((f) {
+                        return ChoiceChip(
+                          label: Text(f.label),
+                          selected: _distanceFilter == f,
+                          onSelected: (_) =>
+                              setState(() => _distanceFilter = f),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  // Sort
+                  _SectionLabel(label: '排序'),
                   RadioGroup<SortOrder>(
                     groupValue: _sortOrder,
                     onChanged: (v) => setState(() => _sortOrder = v!),
@@ -86,68 +127,36 @@ class _SortFilterBottomSheetState extends State<SortFilterBottomSheet> {
                             (sort) => RadioListTile<SortOrder>(
                               title: Text(sort.label),
                               value: sort,
+                              dense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                               ),
-                              dense: true,
                             ),
                           )
                           .toList(),
                     ),
                   ),
-                  const Divider(height: 24, indent: 16, endIndent: 16),
-                  // Filter section header
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Text(
-                      '篩選',
-                      style: textTheme.labelLarge?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  // Filter chips
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Wrap(
-                      spacing: 8,
-                      children: FilterType.values
-                          .map(
-                            (filter) => ChoiceChip(
-                              label: Text(filter.label),
-                              selected: _filterType == filter,
-                              onSelected: (_) =>
-                                  setState(() => _filterType = filter),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
+          // Bottom buttons
           const Divider(height: 1),
-          // Action buttons
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => setState(() {
-                      _sortOrder = SortOrder.dateNewest;
-                      _filterType = FilterType.all;
-                    }),
+                    onPressed: _reset,
                     child: const Text('重設'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () =>
-                        Navigator.of(context).pop((_sortOrder, _filterType)),
+                    onPressed: _apply,
                     child: const Text('套用'),
                   ),
                 ),
@@ -155,6 +164,28 @@ class _SortFilterBottomSheetState extends State<SortFilterBottomSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        label,
+        style: textTheme.labelLarge?.copyWith(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
