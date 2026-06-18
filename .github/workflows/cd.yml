@@ -79,7 +79,7 @@ jobs:
 
           # Provide a clear message when the version cannot be found to avoid blank Release content.
           if [ ! -s release_notes.md ]; then
-            echo "未找到 ${VERSION} 的更新內容，請確認 CHANGELOG.md 已更新" > release_notes.md
+            echo "No update found for ${VERSION} . Please check that CHANGELOG.md has been updated" > release_notes.md
           fi
 
           # Write to GITHUB_OUTPUT (multiline standard format)
@@ -94,15 +94,15 @@ jobs:
         with:
           name: Release ${{ github.ref_name }}
           body: |
-            ## 版本 ${{ github.ref_name }}
+            ## Version ${{ github.ref_name }}
 
-            ### 更新內容
+            ### Updates
             ${{ steps.changelog.outputs.body }}
 
-            ### 安裝方式
-            1. 下載 `app-release.apk`
-            2. 手機開啟「允許安裝未知來源應用程式」
-            3. 安裝並執行
+            ### Installation Method
+            1. Download `app-release.apk`
+            2. Enable "Allow installation of apps from unknown sources" on your phone
+            3. Install and run
           files: build/app/outputs/flutter-apk/app-release.apk
           draft: false
           prerelease: false
