@@ -3,21 +3,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 import 'app.dart';
 import 'core/debug/app_debug_options.dart';
 import 'core/monitoring/monitoring_service.dart';
+import 'core/preferences/shared_preferences_provider.dart';
 import 'core/utils/app_logger.dart';
-import 'features/onboarding/di/onboarding_providers.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // SharedPreferences must complete await before runApp,
+  // SharedPreferencesWithCache must complete await before runApp,
   // Ensure sharedPreferencesProvider has a value in the first frame,
   // Prevent GoRouter from receiving an uninitialized state on the first redirect.
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = await createSharedPreferencesWithCache();
   // Firebase must be initialized before Sentry.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await SentryFlutter.init(
