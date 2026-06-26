@@ -1,5 +1,5 @@
 import 'bootstrap.dart';
-import 'firebase_options.dart';
+import 'firebase_options_production.dart';
 
 /// Production flavor entrypoint.
 /// `flutter build apk --flavor production -t lib/main_production.dart`

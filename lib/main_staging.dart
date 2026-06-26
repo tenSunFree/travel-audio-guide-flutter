@@ -1,5 +1,5 @@
 import 'bootstrap.dart';
-import 'firebase_options.dart';
+import 'firebase_options_staging.dart';
 
 /// Staging flavor entrypoint.
 /// `flutter build apk --flavor staging -t lib/main_staging.dart`
