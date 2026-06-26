@@ -4,8 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
-    tags-ignore:
-      - 'v*.*.*-rc.*'
+      - '!v*.*.*-rc.*'
 
 permissions:
   contents: write
@@ -22,9 +21,10 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # Belt-and-suspenders check: tags-ignore above should already filter out
-      # RC tags at the trigger level, but keep this validation as a safety net
-      # in case a non-standard tag slips through (e.g. v1.0.5.1, v1.0).
+      # Belt-and-suspenders check: the negative pattern in `tags` above should
+      # already filter out RC tags at the trigger level, but keep this
+      # validation as a safety net in case a non-standard tag slips through
+      # (e.g. v1.0.5.1, v1.0).
       - name: Validate production tag
         run: |
           if [[ ! "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
