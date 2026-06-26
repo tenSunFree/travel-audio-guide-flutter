@@ -50,18 +50,25 @@ jobs:
 
       - name: Restore Firebase config files
         run: |
-          if [ -z "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" ]; then
-            echo "Missing FIREBASE_OPTIONS_DART_BASE64 secret"
-            exit 1
-          fi
+          for v in FIREBASE_OPTIONS_STAGING_DART_BASE64 FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 \
+                   GOOGLE_SERVICES_JSON_STAGING_BASE64 GOOGLE_SERVICES_JSON_PRODUCTION_BASE64; do
+            if [ -z "${!v}" ]; then
+              echo "Missing secret: $v"
+              exit 1
+            fi
+          done
 
-          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
-            echo "Missing GOOGLE_SERVICES_JSON_BASE64 secret"
-            exit 1
-          fi
+          mkdir -p android/app/src/staging android/app/src/production
 
-          printf '%s' "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" | base64 --decode > lib/firebase_options.dart
-          printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/firebase_options_staging.dart
+          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/firebase_options_production.dart
+          printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
+          printf '%s' "$GOOGLE_SERVICES_JSON_PRODUCTION_BASE64" | base64 --decode > android/app/src/production/google-services.json
+        env:
+          FIREBASE_OPTIONS_STAGING_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_STAGING_DART_BASE64 }}
+          FIREBASE_OPTIONS_PRODUCTION_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 }}
+          GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+          GOOGLE_SERVICES_JSON_PRODUCTION_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 }}
 
       - name: Check Dart format
         run: dart format --output=none --set-exit-if-changed lib test pigeons
@@ -73,5 +80,14 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build staging debug APK
+        run: |
+          flutter build apk --debug \
+            --flavor staging \
+            -t lib/main_staging.dart
+
+      - name: Build production debug APK
+        run: |
+          flutter build apk --debug \
+            --flavor production \
+            -t lib/main_production.dart

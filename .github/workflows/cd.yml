@@ -3,7 +3,7 @@ name: Flutter CD
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -19,6 +19,16 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+
+      # 'v*.*.*' is a glob pattern, which will also match v1.0.5-rc.1,
+      # So we need to block tags in the unofficial format here to prevent the RC from accidentally entering the official release process.
+      - name: Validate production tag
+        run: |
+          if [[ ! "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid production tag: ${{ github.ref_name }}"
+            echo "Expected format: v1.0.5"
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,8 +48,24 @@ jobs:
 
       - name: Restore Firebase config files
         run: |
-          printf '%s' "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" | base64 --decode > lib/firebase_options.dart
-          printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          mkdir -p android/app/src/production
+          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/firebase_options_production.dart
+          printf '%s' "$GOOGLE_SERVICES_JSON_PRODUCTION_BASE64" | base64 --decode > android/app/src/production/google-services.json
+        env:
+          FIREBASE_OPTIONS_PRODUCTION_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 }}
+          GOOGLE_SERVICES_JSON_PRODUCTION_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 }}
+
+      - name: Restore release keystore
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.keystore.jks
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Install dependencies
         run: flutter pub get
@@ -57,6 +83,10 @@ jobs:
       - name: Build release APK
         run: |
           flutter build apk --release \
+            --flavor production \
+            -t lib/main_production.dart \
+            --build-name=${{ github.ref_name }} \
+            --build-number=${{ github.run_number }} \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
             --dart-define=APP_ENV=production \
             --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ github.ref_name }}
@@ -65,7 +95,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ github.ref_name }}"
-               
+
           # Extract the corresponding version paragraph from CHANGELOG.md
           # Format: ## v1.0.1 (without parentheses, consistent with git tag format)
           # -v Pass in a variable to avoid shell injection issues
@@ -89,6 +119,12 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Rename APK
+        run: |
+          mkdir -p outputs/release
+          cp build/app/outputs/flutter-apk/app-production-release.apk \
+            outputs/release/travel-audio-guide-${{ github.ref_name }}.apk
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -100,10 +136,10 @@ jobs:
             ${{ steps.changelog.outputs.body }}
 
             ### Installation Method
-            1. Download `app-release.apk`
+            1. Download `travel-audio-guide-${{ github.ref_name }}.apk`
             2. Enable "Allow installation of apps from unknown sources" on your phone
             3. Install and run
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: outputs/release/travel-audio-guide-${{ github.ref_name }}.apk
           draft: false
           prerelease: false
         env:
