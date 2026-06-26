@@ -1,0 +1,137 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    name: Build & Distribute Staging APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Show Flutter & Dart version
+        run: flutter --version
+
+      - name: Restore Firebase config files
+        run: |
+          if [ -z "$FIREBASE_OPTIONS_STAGING_DART_BASE64" ]; then
+            echo "Missing FIREBASE_OPTIONS_STAGING_DART_BASE64"
+            exit 1
+          fi
+          if [ -z "$GOOGLE_SERVICES_JSON_STAGING_BASE64" ]; then
+            echo "Missing GOOGLE_SERVICES_JSON_STAGING_BASE64"
+            exit 1
+          fi
+
+          mkdir -p android/app/src/staging
+
+          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/firebase_options_staging.dart
+          printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
+        env:
+          FIREBASE_OPTIONS_STAGING_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_STAGING_DART_BASE64 }}
+          GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Format generated Firebase config files
+        run: dart format lib/firebase_options_staging.dart
+
+      - name: Check Dart format
+        run: dart format --output=none --set-exit-if-changed lib test pigeons
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Extract app version
+        run: |
+          # pubspec.yaml: version: 1.0.5+4  →  Take the 1.0.5 before the "+" sign.
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f 1)
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "APK_NAME=travel-audio-guide-staging-${VERSION}-build-${{ github.run_number }}.apk" >> "$GITHUB_ENV"
+
+      - name: Build staging APK
+        run: |
+          flutter build apk --release \
+            --flavor staging \
+            --build-name=${{ env.APP_VERSION }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
+            --dart-define=APP_ENV=staging \
+            --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ env.APP_VERSION }}-build-${{ github.run_number }} \
+            -t lib/main_staging.dart
+
+      - name: Rename APK
+        run: |
+          mkdir -p outputs/staging
+          cp build/app/outputs/flutter-apk/app-staging-release.apk \
+            outputs/staging/${{ env.APK_NAME }}
+
+      - name: Create release notes
+        run: |
+          cat > release_notes.txt <<EOF
+          Staging build
+
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          Version: ${{ env.APP_VERSION }}
+          Build: ${{ github.run_number }}
+          APK: ${{ env.APK_NAME }}
+          EOF
+
+      - name: Restore Firebase service account
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON_BASE64" ]; then
+            echo "Missing FIREBASE_SERVICE_ACCOUNT_JSON_BASE64"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > firebase-service-account.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Upload to Firebase App Distribution
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+        run: |
+          firebase appdistribution:distribute outputs/staging/${{ env.APK_NAME }} \
+            --app "${{ secrets.FIREBASE_ANDROID_APP_ID_STAGING }}" \
+            --groups "${{ secrets.FIREBASE_TESTER_GROUPS_STAGING }}" \
+            --release-notes-file release_notes.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: outputs/staging/${{ env.APK_NAME }}
+          retention-days: 14
