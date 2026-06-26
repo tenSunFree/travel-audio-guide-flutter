@@ -70,6 +70,9 @@ jobs:
           GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
           GOOGLE_SERVICES_JSON_PRODUCTION_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 }}
 
+      - name: Format generated Firebase config files
+        run: dart format lib/firebase_options_staging.dart lib/firebase_options_production.dart
+
       - name: Check Dart format
         run: dart format --output=none --set-exit-if-changed lib test pigeons
         # Only scan Dart-related folders, do not touch android/ios/build.
