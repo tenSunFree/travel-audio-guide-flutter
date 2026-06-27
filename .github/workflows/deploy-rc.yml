@@ -1,0 +1,172 @@
+name: Deploy RC
+
+on:
+  push:
+    tags:
+      - 'v*.*.*-rc.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-rc-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-rc:
+    name: Build & Distribute RC APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Show Flutter & Dart version
+        run: flutter --version
+
+      # TAG = 1.0.5-rc.1 (from git tag, remove the leading 'v')
+      # BASE_VERSION = 1.0.5 (remove '-rc.x', this is the value written into the app's internal versionName)
+      # The reason why TAG cannot be directly used as --build-name is because Android versionName
+      # Once it contains informal semantic strings like "-rc.1", it will mix into the version number seen on the user's device,
+      # and the version number will be inconsistent when it is converted from RC to official release, making it difficult to track.
+      # The file name (APK file name) retains complete rc information, but the app's internal version maintains a clean X.Y.Z.
+      - name: Extract version from tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          BASE_VERSION=$(echo "$TAG" | sed 's/-rc\..*//')
+
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "BASE_VERSION=$BASE_VERSION" >> "$GITHUB_ENV"
+          echo "APK_NAME=travel-audio-guide-${TAG}.apk" >> "$GITHUB_ENV"
+
+      - name: Validate tag format
+        run: |
+          if [[ ! "${{ env.TAG }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "Invalid RC tag: ${{ env.TAG }}"
+            echo "Expected format: v1.0.5-rc.1"
+            exit 1
+          fi
+
+      - name: Restore Firebase config files
+        run: |
+          for v in FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 FIREBASE_OPTIONS_STAGING_DART_BASE64 \
+                   GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 GOOGLE_SERVICES_JSON_STAGING_BASE64; do
+            if [ -z "${!v}" ]; then
+              echo "Missing secret: $v"
+              exit 1
+            fi
+          done
+
+          mkdir -p android/app/src/production android/app/src/staging
+
+          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/firebase_options_production.dart
+          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/firebase_options_staging.dart
+          printf '%s' "$GOOGLE_SERVICES_JSON_PRODUCTION_BASE64" | base64 --decode > android/app/src/production/google-services.json
+          printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
+        env:
+          FIREBASE_OPTIONS_PRODUCTION_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 }}
+          FIREBASE_OPTIONS_STAGING_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_STAGING_DART_BASE64 }}
+          GOOGLE_SERVICES_JSON_PRODUCTION_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 }}
+          GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+
+      - name: Restore release keystore
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Missing KEYSTORE_BASE64"
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.keystore.jks
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Format generated Firebase config files
+        run: dart format lib/firebase_options_production.dart lib/firebase_options_staging.dart
+
+      - name: Check Dart format
+        run: dart format --output=none --set-exit-if-changed lib test pigeons
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build RC APK
+        run: |
+          flutter build apk --release \
+            --flavor production \
+            --build-name=${{ env.BASE_VERSION }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
+            --dart-define=APP_ENV=rc \
+            --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ env.TAG }} \
+            -t lib/main_production.dart
+
+      - name: Rename APK
+        run: |
+          mkdir -p outputs/rc
+          cp build/app/outputs/flutter-apk/app-production-release.apk \
+            outputs/rc/${{ env.APK_NAME }}
+
+      - name: Create release notes
+        run: |
+          cat > release_notes.txt <<EOF
+          Release Candidate
+
+          Tag: v${{ env.TAG }}
+          Version Name: ${{ env.BASE_VERSION }}
+          Build Number: ${{ github.run_number }}
+          Commit: ${{ github.sha }}
+          APK: ${{ env.APK_NAME }}
+          EOF
+
+      - name: Restore Firebase service account
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON_BASE64" ]; then
+            echo "Missing FIREBASE_SERVICE_ACCOUNT_JSON_BASE64"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > firebase-service-account.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Upload to Firebase App Distribution
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+        run: |
+          firebase appdistribution:distribute outputs/rc/${{ env.APK_NAME }} \
+            --app "${{ secrets.FIREBASE_ANDROID_APP_ID_PRODUCTION }}" \
+            --groups "${{ secrets.FIREBASE_TESTER_GROUPS_RC }}" \
+            --release-notes-file release_notes.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: outputs/rc/${{ env.APK_NAME }}
+          retention-days: 30

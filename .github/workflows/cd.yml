@@ -3,7 +3,8 @@ name: Flutter CD
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v*.*.*'
+      - '!v*.*.*-rc.*'
 
 permissions:
   contents: write
@@ -19,6 +20,18 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+
+      # Belt-and-suspenders check: the negative pattern in `tags` above should
+      # already filter out RC tags at the trigger level, but keep this
+      # validation as a safety net in case a non-standard tag slips through
+      # (e.g. v1.0.5.1, v1.0).
+      - name: Validate production tag
+        run: |
+          if [[ ! "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid production tag: ${{ github.ref_name }}"
+            echo "Expected format: v1.0.5"
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,11 +51,34 @@ jobs:
 
       - name: Restore Firebase config files
         run: |
-          printf '%s' "${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}" | base64 --decode > lib/firebase_options.dart
-          printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          mkdir -p android/app/src/production android/app/src/staging
+          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/firebase_options_production.dart
+          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/firebase_options_staging.dart
+          printf '%s' "$GOOGLE_SERVICES_JSON_PRODUCTION_BASE64" | base64 --decode > android/app/src/production/google-services.json
+          printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
+        env:
+          FIREBASE_OPTIONS_PRODUCTION_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_PRODUCTION_DART_BASE64 }}
+          FIREBASE_OPTIONS_STAGING_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_STAGING_DART_BASE64 }}
+          GOOGLE_SERVICES_JSON_PRODUCTION_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_PRODUCTION_BASE64 }}
+          GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+
+      - name: Restore release keystore
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.keystore.jks
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Format generated Firebase config files
+        run: dart format lib/firebase_options_production.dart lib/firebase_options_staging.dart
 
       - name: Check Dart format
         run: dart format --output=none --set-exit-if-changed lib test pigeons
@@ -57,6 +93,10 @@ jobs:
       - name: Build release APK
         run: |
           flutter build apk --release \
+            --flavor production \
+            -t lib/main_production.dart \
+            --build-name=${{ github.ref_name }} \
+            --build-number=${{ github.run_number }} \
             --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
             --dart-define=APP_ENV=production \
             --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ github.ref_name }}
@@ -65,7 +105,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ github.ref_name }}"
-               
+
           # Extract the corresponding version paragraph from CHANGELOG.md
           # Format: ## v1.0.1 (without parentheses, consistent with git tag format)
           # -v Pass in a variable to avoid shell injection issues
@@ -79,7 +119,7 @@ jobs:
 
           # Provide a clear message when the version cannot be found to avoid blank Release content.
           if [ ! -s release_notes.md ]; then
-            echo "未找到 ${VERSION} 的更新內容，請確認 CHANGELOG.md 已更新" > release_notes.md
+            echo "No update found for ${VERSION} . Please check that CHANGELOG.md has been updated" > release_notes.md
           fi
 
           # Write to GITHUB_OUTPUT (multiline standard format)
@@ -89,21 +129,27 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Rename APK
+        run: |
+          mkdir -p outputs/release
+          cp build/app/outputs/flutter-apk/app-production-release.apk \
+            outputs/release/travel-audio-guide-${{ github.ref_name }}.apk
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}
           body: |
-            ## 版本 ${{ github.ref_name }}
+            ## Version ${{ github.ref_name }}
 
-            ### 更新內容
+            ### Updates
             ${{ steps.changelog.outputs.body }}
 
-            ### 安裝方式
-            1. 下載 `app-release.apk`
-            2. 手機開啟「允許安裝未知來源應用程式」
-            3. 安裝並執行
-          files: build/app/outputs/flutter-apk/app-release.apk
+            ### Installation Method
+            1. Download `travel-audio-guide-${{ github.ref_name }}.apk`
+            2. Enable "Allow installation of apps from unknown sources" on your phone
+            3. Install and run
+          files: outputs/release/travel-audio-guide-${{ github.ref_name }}.apk
           draft: false
           prerelease: false
         env:

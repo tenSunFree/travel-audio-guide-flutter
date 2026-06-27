@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../../../core/nearby/location_controller.dart';
 import '../../../../core/nearby/nearby_models.dart';
@@ -10,9 +9,7 @@ import '../../../attraction/di/attraction_providers.dart';
 import '../../../attraction/domain/entities/attraction.dart';
 import '../../../audio_guide/domain/entities/audio_guide.dart';
 import '../../../audio_guide/presentation/controllers/audio_guide_list_controller.dart';
-
-// Persistence key
-const _kNearbyEnabled = 'nearby_enabled';
+import '../../di/nearby_providers.dart';
 
 // State
 class NearbyHomeState {
@@ -54,8 +51,7 @@ class NearbyHomeController extends StateNotifier<NearbyHomeState> {
   // When the app starts
   // If location services were previously allowed, automatically retrieve them again.
   Future<void> _restoreIfPreviouslyEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    final wasEnabled = prefs.getBool(_kNearbyEnabled) ?? false;
+    final wasEnabled = _ref.read(nearbyRepositoryProvider).isNearbyEnabled();
     if (!wasEnabled) return;
     if (!mounted) return;
     // Directly attempt to retrieve the location (without displaying a permission dialog, since permission was already granted last time)
@@ -77,8 +73,7 @@ class NearbyHomeController extends StateNotifier<NearbyHomeState> {
       return;
     }
     // Remember user permission; automatically restore the app the next time it launches.
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kNearbyEnabled, true);
+    await _ref.read(nearbyRepositoryProvider).setNearbyEnabled(true);
     await _refresh(point.latitude, point.longitude);
   }
 
@@ -104,8 +99,7 @@ class NearbyHomeController extends StateNotifier<NearbyHomeState> {
     if (point == null) {
       // Permissions revoked or location service disabled
       // Clear memory and display fallback
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_kNearbyEnabled, false);
+      await _ref.read(nearbyRepositoryProvider).setNearbyEnabled(false);
       state = state.copyWith(isLoading: false);
       return;
     }
