@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - '!v*.*.*-rc.*'
 
 permissions:
   contents: write
@@ -20,8 +21,10 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 'v*.*.*' is a glob pattern, which will also match v1.0.5-rc.1,
-      # So we need to block tags in the unofficial format here to prevent the RC from accidentally entering the official release process.
+      # Belt-and-suspenders check: the negative pattern in `tags` above should
+      # already filter out RC tags at the trigger level, but keep this
+      # validation as a safety net in case a non-standard tag slips through
+      # (e.g. v1.0.5.1, v1.0).
       - name: Validate production tag
         run: |
           if [[ ! "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

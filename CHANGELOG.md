@@ -2,6 +2,15 @@
 
 ---
 
+## v1.0.5 - 2026-06-27
+
+### Internal
+- Migrated SharedPreferences to SharedPreferencesWithCache, and refactored using the Repository pattern
+- Set up an automated Firebase App Distribution pipeline to distribute staging and RC builds to testers (CI/CD only, no impact on app behavior)
+- Fixed CI/CD workflow issues including incomplete Firebase config restoration and Dart format check failures
+
+No user-facing features or fixes in this release.
+
 ## v1.0.4 - 2026-06-18
 
 ### Added
