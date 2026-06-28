@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/ci.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/ci.yml)
 [![CD](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml)
+[![Staging Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml)
+[![RC Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml)
 [![Flutter](https://img.shields.io/badge/Flutter-3.38.10-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.10.9-0175C2?logo=dart&logoColor=white)](https://dart.dev)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2B%20Feature--First-4CAF50)](#architecture)
@@ -11,6 +13,7 @@
 [![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget-FF9800)](#testing)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-analytics)
 [![Analytics](https://img.shields.io/badge/Analytics-Firebase-FFCA28?logo=firebase&logoColor=black)](#observability-and-analytics)
+[![Distribution](https://img.shields.io/badge/Distribution-Firebase%20App%20Distribution-FFCA28?logo=firebase&logoColor=black)](#git-workflow--cicd)
 
 ---
 
@@ -145,11 +148,16 @@ It handles JWT verification and user profile management.
 ### Git Workflow & CI/CD
 
 - Adopted a feature branch workflow with `develop`, `main`, and `release/*` protected branches
-- Blocked direct pushes and required Pull Requests for all changes to protected branches
-- Configured GitHub Actions CI for Pull Requests, including Dart format check, static analysis, unit tests, and debug APK build
+- Enforced branch protection rules on `develop`, `main`, and `release/*`, blocking direct pushes and requiring Pull Requests with passing CI checks before merge
+- Configured GitHub Actions CI for Pull Requests, including Dart format checks, static analysis, unit tests, and debug APK builds for both `staging` and `production` flavors
 - Configured merge requirements so CI checks must pass and branches must be up to date before merging
 - Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds, and GitHub Releases
 - Added a Pull Request template to standardize change summaries, test plans, and related issue tracking
+- Set up Android `staging` and `production` product flavors with separate application IDs, enabling both builds to be installed side by side on the same device
+- Automated staging build distribution via Firebase App Distribution on every push to `develop`
+- Automated Release Candidate build distribution via Firebase App Distribution on `v*.*.*-rc.*` tag pushes
+- Separated RC distribution from official production release tags to prevent accidental production releases
+- Restored per-flavor Firebase configuration files, service account credentials, and the Android signing keystore from GitHub Secrets in CI, keeping sensitive files out of the repository
 
 ### Observability and Analytics
 
@@ -237,6 +245,12 @@ It handles JWT verification and user profile management.
   Lightweight local key-value storage (Persists onboarding completion state to control first-launch welcome flow and subsequent app startup routing)
 - geolocator  
   Provides one-time foreground location retrieval and permission handling for nearby recommendations. Location is used only for local distance calculation against Drift-cached data, without background tracking or backend geo-query APIs.
+- GitHub Actions  
+  Pull Request validation, flavor-aware debug builds, release APK builds, and automated GitHub Releases
+- Firebase App Distribution  
+  Automated pre-release distribution for `staging` and Release Candidate builds via GitHub Actions and the Firebase CLI
+- GitHub Branch Protection  
+  Protected `develop`, `main`, and `release/*` branches with required PR checks before merge
 
 ---
 
