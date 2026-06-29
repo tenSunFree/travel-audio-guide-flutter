@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../utils/app_logger.dart';
 import 'nearby_models.dart';
 
 class LocationState {
@@ -49,6 +51,15 @@ final locationControllerProvider =
       (ref) => LocationController(),
     );
 
+/// This sets the time limit for the native plugin to attempt to obtain high-precision positioning.
+/// If this time limit is exceeded, the plugin should theoretically throw a TimeoutException.
+const _nativeTimeLimit = Duration(seconds: 12);
+
+/// The hard limit (fuse) on the Dart side.
+/// Even if the native timeLimit is not correctly enforced due to bugs on some Android devices/older plugins,
+/// This .timeout() will still force the Future to end within its time limit, preventing the UI from spinning indefinitely.
+const _hardTimeout = Duration(seconds: 15);
+
 class LocationController extends StateNotifier<LocationState> {
   LocationController() : super(LocationState.initial());
 
@@ -64,19 +75,25 @@ class LocationController extends StateNotifier<LocationState> {
     final id = ++_requestId;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      // Check location service
+      // Check if location services are enabled
+      AppLogger.debug('[Location] checking service enabled...');
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (id != _requestId) return null;
+        AppLogger.debug('[Location] service disabled');
         state = state.copyWith(
           isLoading: false,
           permissionState: NearbyPermissionState.serviceDisabled,
         );
         return null;
       }
-      // Check / request permission
+      // Check / Request Permissions
+      AppLogger.debug('[Location] checking permission...');
       var perm = await Geolocator.checkPermission();
+      AppLogger.debug('[Location] current permission: $perm');
       if (perm == LocationPermission.denied) {
+        AppLogger.debug('[Location] requesting permission...');
         perm = await Geolocator.requestPermission();
+        AppLogger.debug('[Location] permission after request: $perm');
       }
       if (id != _requestId) return null;
       if (perm == LocationPermission.denied) {
@@ -93,11 +110,36 @@ class LocationController extends StateNotifier<LocationState> {
         );
         return null;
       }
-      // Get position
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+      // Get coordinates (double insurance using native timeLimit + Dart .timeout())
+      AppLogger.debug('[Location] getting current position...');
+      Position pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: _nativeTimeLimit,
+          ),
+        ).timeout(_hardTimeout);
+      } on TimeoutException {
+        AppLogger.warning(
+          '[Location] getCurrentPosition timed out after '
+          '${_hardTimeout.inSeconds}s, falling back to last known position',
+        );
+        // When you can't get the real-time location, the next best thing is to use the last successful location cache
+        final last = await Geolocator.getLastKnownPosition();
+        if (id != _requestId) return null;
+        if (last == null) {
+          state = state.copyWith(
+            isLoading: false,
+            permissionState: NearbyPermissionState.failure,
+            errorMessage: '定位逾時，且裝置上沒有先前的定位快取，請到訊號較好的地方再試一次。',
+          );
+          return null;
+        }
+        pos = last;
+      }
+      AppLogger.debug(
+        '[Location] got position: ${pos.latitude}, ${pos.longitude}',
       );
       if (id != _requestId) return null;
       final point = GeoPoint(latitude: pos.latitude, longitude: pos.longitude);
@@ -108,7 +150,8 @@ class LocationController extends StateNotifier<LocationState> {
         clearError: true,
       );
       return point;
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.error('[Location] error: $e', exception: e, stackTrace: st);
       if (id != _requestId) return null;
       state = state.copyWith(
         isLoading: false,
