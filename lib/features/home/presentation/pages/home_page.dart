@@ -19,8 +19,33 @@ import '../widgets/period_chips.dart';
 import '../widgets/rainy_mode_card.dart';
 import '../widgets/recommend_list_tile.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
+
+  @override
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Do not call methods that modify the state of other providers within the provider constructor (synchronous initialization phase).
+    //
+    // Change it to after the first frame is completed on the HomePage (addPostFrameCallback)
+    // Only then is restoreIfPreviouslyEnabled() called. This is the point in time:
+    // 1. NearbyHomeController has been fully mounted.
+    // 2. LocationController has also been fully mounted.
+    // 3. The first build of the entire widget tree has completed.
+    // So here we call getCurrentLocation() to modify LocationController.state
+    // This completely avoids violating Riverpod's "cannot modify other providers during initialization" rule.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(nearbyHomeControllerProvider.notifier)
+          .restoreIfPreviouslyEnabled();
+    });
+  }
 
   static String _timeSlotValue(HomePeriod period) {
     return switch (period) {
@@ -74,7 +99,7 @@ class HomePage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final state = ref.watch(homeControllerProvider);
     final controller = ref.read(homeControllerProvider.notifier);
     final nearbyState = ref.watch(nearbyHomeControllerProvider);
