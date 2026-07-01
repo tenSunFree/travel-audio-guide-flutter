@@ -2,6 +2,14 @@
 
 ---
 
+## v1.0.6 - 2026-07-02
+
+### Internal
+- Moved firebase_options files from lib/ root into lib/config/firebase/ for better project structure
+- Documented Firebase App Distribution workflow
+- Refactored HomePage to use ConsumerStatefulWidget and improved location handling
+- Fixed pre-push check to build staging APK instead of unflavored debug build
+
 ## v1.0.5 - 2026-06-27
 
 ### Internal
