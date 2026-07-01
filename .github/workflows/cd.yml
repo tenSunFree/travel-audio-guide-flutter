@@ -52,8 +52,9 @@ jobs:
       - name: Restore Firebase config files
         run: |
           mkdir -p android/app/src/production android/app/src/staging
-          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/firebase_options_production.dart
-          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/firebase_options_staging.dart
+          mkdir -p lib/config/firebase
+          printf '%s' "$FIREBASE_OPTIONS_PRODUCTION_DART_BASE64" | base64 --decode > lib/config/firebase/firebase_options_production.dart
+          printf '%s' "$FIREBASE_OPTIONS_STAGING_DART_BASE64" | base64 --decode > lib/config/firebase/firebase_options_staging.dart
           printf '%s' "$GOOGLE_SERVICES_JSON_PRODUCTION_BASE64" | base64 --decode > android/app/src/production/google-services.json
           printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
         env:
@@ -78,7 +79,7 @@ jobs:
         run: flutter pub get
 
       - name: Format generated Firebase config files
-        run: dart format lib/firebase_options_production.dart lib/firebase_options_staging.dart
+        run: dart format lib/config/firebase/firebase_options_production.dart lib/config/firebase/firebase_options_staging.dart
 
       - name: Check Dart format
         run: dart format --output=none --set-exit-if-changed lib test pigeons
