@@ -58,15 +58,15 @@ env/release.json
 # Firebase config - public repo, Submitting is not recommended
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
-lib/firebase_options.dart
+lib/config/firebase/firebase_options.dart
 
 # google-services.json split according to flavor
 android/app/src/staging/google-services.json
 android/app/src/production/google-services.json
 
 # Firebase options split according to environment
-lib/firebase_options_staging.dart
-lib/firebase_options_production.dart
+lib/config/firebase/firebase_options_staging.dart
+lib/config/firebase/firebase_options_production.dart
 
 # Release signature settings (absolutely do not commit)
 android/key.properties
