@@ -11,6 +11,11 @@
           "projectId": "travel-audio-guide-flutter",
           "appId": "1:32496810146:android:d50b8ee208ec5d837e3ffb",
           "fileOutput": "android/app/src/staging/google-services.json"
+        },
+        "default": {
+          "projectId": "travel-audio-guide-flutter",
+          "appId": "1:32496810146:android:0a73820cd30f63607e3ffb",
+          "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
@@ -25,6 +30,13 @@
           "projectId": "travel-audio-guide-flutter",
           "configurations": {
             "android": "1:32496810146:android:d50b8ee208ec5d837e3ffb",
+            "ios": "1:32496810146:ios:2e631342a1c7ee967e3ffb"
+          }
+        },
+        "lib/firebase_options.dart": {
+          "projectId": "travel-audio-guide-flutter",
+          "configurations": {
+            "android": "1:32496810146:android:0a73820cd30f63607e3ffb",
             "ios": "1:32496810146:ios:2e631342a1c7ee967e3ffb"
           }
         }
