@@ -61,6 +61,7 @@ void main() {
   });
 
   test('attractionsStreamProvider 回傳資料庫初始空清單，且會觸發背景同步', () async {
+    container.listen(attractionsStreamProvider, (_, _) {});
     final result = await container.read(attractionsStreamProvider.future);
     expect(result, isEmpty);
     await Future<void>.delayed(Duration.zero);

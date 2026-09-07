@@ -33,7 +33,7 @@ class ProfileController extends AsyncNotifier<Profile?> {
     }
 
     final requestId = ++_requestId;
-    state = const AsyncLoading<Profile?>().copyWithPrevious(state);
+    state = const AsyncLoading<Profile?>();
     final result = await AsyncValue.guard(
       () => ref
           .read(profileRepositoryProvider)
@@ -54,7 +54,7 @@ class ProfileController extends AsyncNotifier<Profile?> {
       return;
     }
     final requestId = ++_requestId;
-    state = const AsyncLoading<Profile?>().copyWithPrevious(state);
+    state = const AsyncLoading<Profile?>();
     final result = await AsyncValue.guard(
       () => ref.read(profileRepositoryProvider).getMe(),
     );

@@ -16,11 +16,10 @@ typedef IsGuideDownloadedHandler = Future<bool> Function(AudioGuide guide);
 
 class FakeAudioGuideRepository implements AudioGuideRepository {
   FakeAudioGuideRepository({
-    required GetAudioGuidesHandler onGet,
+    required this._onGet,
     DownloadAudioGuideHandler? onDownload,
     IsGuideDownloadedHandler? onIsDownloaded,
-  }) : _onGet = onGet,
-       _onDownload = onDownload ?? ((_) async => r'C:\audio\default.mp3'),
+  }) : _onDownload = onDownload ?? ((_) async => r'C:\audio\default.mp3'),
        _onIsDownloaded = onIsDownloaded ?? ((_) async => false);
 
   final GetAudioGuidesHandler _onGet;

@@ -5,8 +5,8 @@ import 'package:flutter_travel_audio_guide/features/activity/domain/repositories
 
 class ActivityRepositoryImpl implements ActivityRepository {
   const ActivityRepositoryImpl({
-    required ActivityRemoteDataSource remoteDataSource,
-  }) : _remoteDataSource = remoteDataSource;
+    required this._remoteDataSource,
+  });
 
   final ActivityRemoteDataSource _remoteDataSource;
 

@@ -195,7 +195,7 @@ class _AudioGuideDetailPageState extends ConsumerState<AudioGuideDetailPage> {
   }
 
   Attraction? _resolveAttraction(AsyncValue<List<Attraction>> async) {
-    final all = async.valueOrNull ?? const <Attraction>[];
+    final all = async.value ?? const <Attraction>[];
     final matched = all
         .where((item) => _isSamePlace(item.name, widget.guide.title))
         .toList();

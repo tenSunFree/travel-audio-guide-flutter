@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/core/analytics/analytics_service.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
 import 'package:flutter_travel_audio_guide/core/monitoring/monitoring_service.dart';
@@ -223,9 +224,8 @@ class AudioGuideListState {
 class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   AudioGuideListController({
     required this.ref,
-    required DownloadAudioGuideUseCase downloadAudioGuideUseCase,
-  }) : _downloadAudioGuideUseCase = downloadAudioGuideUseCase,
-       super(AudioGuideListState.initial()) {
+    required this._downloadAudioGuideUseCase,
+  }) : super(AudioGuideListState.initial()) {
     _init();
   }
 

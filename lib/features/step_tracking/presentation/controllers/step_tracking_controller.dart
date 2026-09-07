@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/features/step_tracking/domain/entities/exercise_summary_data.dart';
 import 'package:flutter_travel_audio_guide/features/step_tracking/domain/services/step_tracking_service.dart';
 import 'package:flutter_travel_audio_guide/features/step_tracking/presentation/enums/step_tracking_source.dart';

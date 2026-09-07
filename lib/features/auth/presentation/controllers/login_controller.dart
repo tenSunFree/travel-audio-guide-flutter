@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/core/error/exceptions.dart';
 import 'package:flutter_travel_audio_guide/features/auth/di/auth_providers.dart';
 import 'package:flutter_travel_audio_guide/features/auth/presentation/controllers/login_state.dart';
@@ -64,7 +65,7 @@ class LoginController extends StateNotifier<LoginState> {
   }
 }
 
-final AutoDisposeStateNotifierProvider<LoginController, LoginState>
+final StateNotifierProvider<LoginController, LoginState>
 loginControllerProvider =
     StateNotifierProvider.autoDispose<LoginController, LoginState>((ref) {
       return LoginController(ref: ref);

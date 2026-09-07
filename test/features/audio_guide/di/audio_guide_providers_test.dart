@@ -67,6 +67,7 @@ void main() {
   });
 
   test('audioGuidesStreamProvider 初始回傳空清單（無背景同步，安全）', () async {
+    container.listen(audioGuidesStreamProvider, (_, _) {});
     final result = await container.read(audioGuidesStreamProvider.future);
     expect(result, isEmpty);
   });
