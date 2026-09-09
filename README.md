@@ -172,7 +172,9 @@ below for how the two sides fit together.
 
 - Clean Architecture with separation of data, domain, and presentation layers
 - Feature-first project structure
-- State management with `flutter_riverpod`
+- State management with `flutter_riverpod` (`^3.4.2`); a handful of controllers still use the
+  legacy `StateNotifier`/`StateNotifierProvider` API via `package:flutter_riverpod/legacy.dart`
+  pending a follow-up migration to `Notifier`/`AsyncNotifier`
 - Immutable domain entities, API models, and UI states with Freezed
 - Local persistence with Drift and generated DAOs
 - HTTP client with Dio and centralized request / response logging via Talker
