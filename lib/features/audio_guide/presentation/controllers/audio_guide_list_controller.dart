@@ -224,8 +224,10 @@ class AudioGuideListState {
 class AudioGuideListController extends StateNotifier<AudioGuideListState> {
   AudioGuideListController({
     required this.ref,
-    required this._downloadAudioGuideUseCase,
-  }) : super(AudioGuideListState.initial()) {
+    required DownloadAudioGuideUseCase downloadAudioGuideUseCase,
+    // ignore: prefer_initializing_formals, public parameter name kept for the existing provider call site while the field stays private
+  }) : _downloadAudioGuideUseCase = downloadAudioGuideUseCase,
+       super(AudioGuideListState.initial()) {
     _init();
   }
 

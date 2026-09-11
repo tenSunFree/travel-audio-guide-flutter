@@ -8,10 +8,14 @@ import 'package:flutter_travel_audio_guide/features/home/domain/services/open_ti
 
 class HomeRepository {
   HomeRepository({
-    required this._attractionDao,
-    required this._activityDao,
+    required AttractionDao attractionDao,
+    required ActivityDao activityDao,
     OpenTimeParser? openTimeParser,
-  }) : _openTimeParser = openTimeParser ?? const OpenTimeParser();
+    // ignore: prefer_initializing_formals, public parameter names kept for the existing provider call site while the fields stay private
+  }) : _attractionDao = attractionDao,
+       // ignore: prefer_initializing_formals, public parameter names kept for the existing provider call site while the fields stay private
+       _activityDao = activityDao,
+       _openTimeParser = openTimeParser ?? const OpenTimeParser();
 
   final AttractionDao _attractionDao;
   final ActivityDao _activityDao;

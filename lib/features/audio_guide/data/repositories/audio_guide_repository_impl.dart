@@ -8,9 +8,12 @@ import 'package:flutter_travel_audio_guide/features/audio_guide/domain/repositor
 
 class AudioGuideRepositoryImpl implements AudioGuideRepository {
   const AudioGuideRepositoryImpl({
-    required this._remoteDataSource,
-    required this._localDataSource,
-  });
+    required AudioGuideRemoteDataSource remoteDataSource,
+    required AudioGuideLocalDataSource localDataSource,
+    // ignore: prefer_initializing_formals, public parameter names kept for existing DI/test callers while the fields stay private
+  }) : _remoteDataSource = remoteDataSource,
+       // ignore: prefer_initializing_formals, public parameter names kept for existing DI/test callers while the fields stay private
+       _localDataSource = localDataSource;
 
   final AudioGuideRemoteDataSource _remoteDataSource;
   final AudioGuideLocalDataSource _localDataSource;
