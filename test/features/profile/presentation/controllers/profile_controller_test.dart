@@ -147,6 +147,8 @@ void main() {
       getMeResult: buildProfile(displayName: 'Sun2'),
     );
     container = buildContainer(initialIsSignedIn: true);
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     final profile = await container.read(profileControllerProvider.future);
     expect(profile?.displayName, 'Sun2');
     expect(profileRepository.getMeCallCount, 1);
@@ -155,6 +157,8 @@ void main() {
   test('未登入時不會呼叫 getMe()，state 為 null', () async {
     profileRepository = FakeProfileRepository();
     container = buildContainer();
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     final profile = await container.read(profileControllerProvider.future);
     expect(profile, isNull);
     expect(profileRepository.getMeCallCount, 0);
@@ -165,6 +169,8 @@ void main() {
       getMeResult: buildProfile(id: 'user-b', displayName: 'Sun2'),
     );
     container = buildContainer();
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     expect(await container.read(profileControllerProvider.future), isNull);
     expect(profileRepository.getMeCallCount, 0);
     authRepository.signInAs('user-b');
@@ -178,6 +184,8 @@ void main() {
     profileRepository = FakeProfileRepository(getMeResult: buildProfile())
       ..updateMeResults.add(buildProfile(displayName: 'Sun2'));
     container = buildContainer(initialIsSignedIn: true);
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     await container.read(profileControllerProvider.future);
     await container
         .read(profileControllerProvider.notifier)
@@ -191,10 +199,14 @@ void main() {
     profileRepository = FakeProfileRepository(getMeResult: buildProfile())
       ..updateMeResults.add(Exception('update failed'));
     container = buildContainer(initialIsSignedIn: true);
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     await container.read(profileControllerProvider.future);
     await container
         .read(profileControllerProvider.notifier)
         .updateProfile(displayName: 'Sun2');
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     expect(container.read(profileControllerProvider).hasError, isTrue);
   });
 
@@ -202,6 +214,8 @@ void main() {
     profileRepository = FakeProfileRepository(getMeResult: buildProfile())
       ..useManualUpdateGates = true;
     container = buildContainer(initialIsSignedIn: true);
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     await container.read(profileControllerProvider.future);
     final notifier = container.read(profileControllerProvider.notifier);
     final firstUpdate = notifier.updateProfile(displayName: 'Old');
@@ -225,6 +239,8 @@ void main() {
       getMeResult: buildProfile(displayName: 'A'),
     );
     container = buildContainer(initialIsSignedIn: true);
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     await container.read(profileControllerProvider.future);
     profileRepository.getMeResult = buildProfile(displayName: 'B');
     await container.read(profileControllerProvider.notifier).refresh();
@@ -234,6 +250,8 @@ void main() {
   test('未登入時呼叫 refresh 會把 state 清成 null，且不打 API', () async {
     profileRepository = FakeProfileRepository();
     container = buildContainer();
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     await container.read(profileControllerProvider.future);
     await container.read(profileControllerProvider.notifier).refresh();
     expect(container.read(profileControllerProvider).value, isNull);
@@ -246,6 +264,8 @@ void main() {
       initialIsSignedIn: true,
     );
     // AsyncNotifier.build() is lazy. Reading the provider is what starts getMe().
+    container.listen(authStateChangesProvider, (_, _) {});
+    container.listen(profileControllerProvider, (_, _) {});
     final firstLoad = container.read(profileControllerProvider.future);
     await Future<void>.delayed(Duration.zero);
     expect(profileRepository.getMeCompleters, hasLength(1));
@@ -254,25 +274,21 @@ void main() {
     );
     expect((await firstLoad)?.id, 'user-a');
     container.listen(profileControllerProvider, (_, _) {});
-
     final refreshFuture = container
         .read(profileControllerProvider.notifier)
         .refresh();
     await Future<void>.delayed(Duration.zero);
     expect(profileRepository.getMeCompleters, hasLength(2));
-
     authRepository.signOutUser();
     await Future<void>.delayed(Duration.zero);
     authRepository.signInAs('user-b');
     await Future<void>.delayed(Duration.zero);
     expect(profileRepository.getMeCompleters, hasLength(3));
-
     // Late A refresh must be dropped.
     profileRepository.getMeCompleters[1].complete(
       buildProfile(displayName: 'A-stale'),
     );
     await refreshFuture;
-
     profileRepository.getMeCompleters[2].complete(
       buildProfile(id: 'user-b', displayName: 'B'),
     );

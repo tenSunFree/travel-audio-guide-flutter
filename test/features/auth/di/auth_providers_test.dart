@@ -52,10 +52,10 @@ void main() {
     // Revert to a synchronous snapshot of the repository before the Stream has emitted any values (false).
     expect(container.read(isSignedInProvider), isFalse);
     controller.add(true);
-    await Future<void>.delayed(Duration.zero);
+    await pumpEventQueue();
     expect(container.read(isSignedInProvider), isTrue);
     controller.add(false);
-    await Future<void>.delayed(Duration.zero);
+    await pumpEventQueue();
     expect(container.read(isSignedInProvider), isFalse);
   });
 

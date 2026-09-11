@@ -35,7 +35,7 @@ final authStateChangesProvider = StreamProvider<bool>((ref) {
 /// app startup), fall back to the repository's synchronous snapshot.
 final isSignedInProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateChangesProvider);
-  return authState.valueOrNull ?? ref.read(authRepositoryProvider).isSignedIn;
+  return authState.value ?? ref.read(authRepositoryProvider).isSignedIn;
 });
 
 extension _StartWith<T> on Stream<T> {

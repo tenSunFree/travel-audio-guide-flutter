@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
 import 'package:flutter_travel_audio_guide/core/network/network_providers.dart';
 import 'package:flutter_travel_audio_guide/features/activity/data/datasources/activity_remote_data_source.dart';

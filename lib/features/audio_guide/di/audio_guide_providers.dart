@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
 import 'package:flutter_travel_audio_guide/core/network/network_providers.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/data/datasources/audio_guide_local_data_source.dart';
@@ -36,7 +37,7 @@ final downloadAudioGuideUseCaseProvider = Provider<DownloadAudioGuideUseCase>((
   return DownloadAudioGuideUseCase(ref.watch(audioGuideRepositoryProvider));
 });
 
-final AutoDisposeProviderFamily<AudioPlaybackService, String>
+final ProviderFamily<AudioPlaybackService, String>
 audioPlaybackServiceProvider = Provider.autoDispose
     .family<AudioPlaybackService, String>((ref, path) {
       final service = AudioPlaybackServiceImpl();

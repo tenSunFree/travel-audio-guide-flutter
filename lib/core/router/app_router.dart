@@ -89,7 +89,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(hasSeenNotifier.dispose);
   // Whether the user is signed in with Supabase
   final signedInNotifier = ValueNotifier<bool>(
-    ref.read(authStateChangesProvider).valueOrNull ?? false,
+    ref.read(authStateChangesProvider).value ?? false,
   );
   ref.listen(authStateChangesProvider, (_, next) {
     next.whenData((signedIn) => signedInNotifier.value = signedIn);

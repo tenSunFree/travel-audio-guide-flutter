@@ -1,6 +1,5 @@
 import 'dart:async';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/core/nearby/nearby_models.dart';
 import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 import 'package:geolocator/geolocator.dart';
