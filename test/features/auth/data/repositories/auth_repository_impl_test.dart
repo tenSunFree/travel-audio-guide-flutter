@@ -15,6 +15,22 @@ class MockAuthResponse extends Mock implements AuthResponse {}
 
 class MockAuthState extends Mock implements AuthState {}
 
+/// Creates a MockSession with `isExpired` stubbed.
+///
+/// AuthRepositoryImpl checks `session.isExpired`. Since mocktail returns `null`
+/// for unstubbed boolean getters—triggering a "Null is not a subtype of bool"
+/// error—the expiration status must be explicitly specified for every MockSession.
+///
+/// Note: Do not call `buildSession(...)` directly within the arguments of
+/// `when(...).thenReturn(...)`, as this triggers mocktail's
+/// "Cannot call `when` within a stub response" error.
+/// Assign the result to a variable first, then pass it to `thenReturn`.
+MockSession buildSession({required bool expired}) {
+  final session = MockSession();
+  when(() => session.isExpired).thenReturn(expired);
+  return session;
+}
+
 void main() {
   late MockSupabaseAuthDataSource dataSource;
   late AuthRepositoryImpl repository;
@@ -47,23 +63,35 @@ void main() {
       expect(repository.isSignedIn, isFalse);
     });
 
-    test('currentSession 有值時回傳 true', () {
-      when(() => dataSource.currentSession).thenReturn(MockSession());
+    test('currentSession 有值且未過期時回傳 true', () {
+      final session = buildSession(expired: false);
+      when(() => dataSource.currentSession).thenReturn(session);
       expect(repository.isSignedIn, isTrue);
+    });
+
+    test('currentSession 已過期時回傳 false（等 SDK 自動 refresh）', () {
+      final session = buildSession(expired: true);
+      when(() => dataSource.currentSession).thenReturn(session);
+      expect(repository.isSignedIn, isFalse);
     });
   });
 
   group('authStateChanges', () {
-    test('把 AuthState 映射成「session 是否存在」的 bool stream', () async {
+    test('把 AuthState 映射成「session 是否存在且未過期」的 bool stream', () async {
+      final validSession = buildSession(expired: false);
+      final expiredSession = buildSession(expired: true);
       final signedInState = MockAuthState();
-      when(() => signedInState.session).thenReturn(MockSession());
+      when(() => signedInState.session).thenReturn(validSession);
+      final expiredState = MockAuthState();
+      when(() => expiredState.session).thenReturn(expiredSession);
       final signedOutState = MockAuthState();
       when(() => signedOutState.session).thenReturn(null);
       when(() => dataSource.onAuthStateChange).thenAnswer(
-        (_) => Stream.fromIterable([signedInState, signedOutState]),
+        (_) =>
+            Stream.fromIterable([signedInState, expiredState, signedOutState]),
       );
       final results = await repository.authStateChanges.toList();
-      expect(results, [true, false]);
+      expect(results, [true, false, false]);
     });
   });
 

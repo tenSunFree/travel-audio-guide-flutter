@@ -57,9 +57,12 @@ class MyJourneyPage extends ConsumerWidget {
 
   void _showAccountSheet(BuildContext context, WidgetRef ref) {
     final email = ref.read(authRepositoryProvider).currentUser?.email ?? '';
+    // Capture the parent page's ScaffoldMessenger before opening the sheet —
+    // the sheet's own context is gone once Navigator.pop() runs below.
+    final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet<void>(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -73,8 +76,12 @@ class MyJourneyPage extends ConsumerWidget {
                 leading: const Icon(Icons.logout),
                 title: const Text('登出'),
                 onTap: () async {
-                  Navigator.of(context).pop();
-                  await ref.read(authRepositoryProvider).signOut();
+                  Navigator.of(sheetContext).pop();
+                  try {
+                    await ref.read(authRepositoryProvider).signOut();
+                  } catch (e) {
+                    messenger.showSnackBar(SnackBar(content: Text('登出失敗：$e')));
+                  }
                 },
               ),
             ],

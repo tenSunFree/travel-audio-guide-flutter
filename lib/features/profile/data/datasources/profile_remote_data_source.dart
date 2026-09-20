@@ -52,7 +52,19 @@ class ProfileRemoteDataSource {
     final body = response.data;
     final data = body?['data'];
     if (response.statusCode == 200 && data is Map<String, dynamic>) {
-      return ProfileModel.fromJson(data);
+      try {
+        return ProfileModel.fromJson(data);
+      } catch (e, stackTrace) {
+        AppLogger.error(
+          'Profile API failed | action=解析個人資料 | statusCode=${response.statusCode}',
+          exception: e,
+          stackTrace: stackTrace,
+        );
+        Error.throwWithStackTrace(
+          const ServerException('個人資料格式錯誤：解析失敗'),
+          stackTrace,
+        );
+      }
     }
     throw ServerException('個人資料格式錯誤：statusCode=${response.statusCode}');
   }
