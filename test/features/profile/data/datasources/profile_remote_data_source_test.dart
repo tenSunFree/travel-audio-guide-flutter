@@ -70,6 +70,28 @@ void main() {
     await expectLater(dataSource.getMe(), throwsA(isA<ServerException>()));
   });
 
+  test('getMe 200 且 data 是 Map 但缺必填欄位時，捕捉解析例外並拋 ServerException', () async {
+    when(() => dio.get<Map<String, dynamic>>('/api/v1/me')).thenAnswer(
+      (_) async => buildResponse(
+        statusCode: 200,
+        // 缺少 required 的 id/created_at/updated_at，會讓 fromJson 丟例外
+        data: {
+          'data': <String, dynamic>{'email': 'a@b.com'},
+        },
+      ),
+    );
+    await expectLater(
+      dataSource.getMe(),
+      throwsA(
+        isA<ServerException>().having(
+          (e) => e.message,
+          'message',
+          '個人資料格式錯誤：解析失敗',
+        ),
+      ),
+    );
+  });
+
   test('updateMe 只送出非 null 欄位', () async {
     when(
       () => dio.put<Map<String, dynamic>>(
@@ -162,6 +184,38 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  test('updateMe 傳入 avatarUrl 與 preferredLanguage 時也會送出這些欄位', () async {
+    when(
+      () => dio.put<Map<String, dynamic>>(
+        '/api/v1/me',
+        data: any(named: 'data'),
+      ),
+    ).thenAnswer(
+      (_) async => buildResponse(
+        statusCode: 200,
+        data: {
+          ...{'data': profileJson},
+        },
+      ),
+    );
+    await dataSource.updateMe(
+      avatarUrl: 'https://example.com/new.png',
+      preferredLanguage: 'en',
+    );
+    final captured =
+        verify(
+              () => dio.put<Map<String, dynamic>>(
+                '/api/v1/me',
+                data: captureAny(named: 'data'),
+              ),
+            ).captured.single
+            as Map<String, dynamic>;
+    expect(captured, {
+      'avatar_url': 'https://example.com/new.png',
+      'preferred_language': 'en',
     });
   });
 }

@@ -68,13 +68,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   /// Validate `from` to avoid unsafe redirects or /login loops:
   /// - must exist and be non-empty
-  /// - must be an internal relative path (starts with '/')
+  /// - must be an internal relative path with no scheme/authority
+  ///   (rejects e.g. `//example.com/path`, which starts with '/' but is
+  ///   actually protocol-relative and points off-app)
   /// - must not point back to /login itself
   String? _safeFrom() {
     final from = GoRouterState.of(context).uri.queryParameters['from'];
     if (from == null || from.isEmpty) return null;
-    if (!from.startsWith('/')) return null;
-    if (from.startsWith(AppRoutes.login)) return null;
+    final uri = Uri.tryParse(from);
+    if (uri == null) return null;
+    if (uri.hasScheme || uri.hasAuthority) return null;
+    if (!uri.path.startsWith('/')) return null;
+    if (uri.path.startsWith(AppRoutes.login)) return null;
     return from;
   }
 

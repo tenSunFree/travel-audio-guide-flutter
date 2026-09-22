@@ -64,6 +64,15 @@ class FakeAuthRepository implements AuthRepository {
   }
 }
 
+class ThrowingSignOutAuthRepository extends FakeAuthRepository {
+  ThrowingSignOutAuthRepository({super.isSignedIn, super.currentUser});
+
+  @override
+  Future<void> signOut() async {
+    throw Exception('network error');
+  }
+}
+
 /// Widget under test wrapped with the providers MyJourneyPage now depends
 /// on. `isSignedInProvider` is overridden directly (it's a plain Provider,
 /// cheap to fix in place); `authRepositoryProvider` is overridden with the
@@ -209,6 +218,17 @@ void main() {
       await tester.tap(find.text('登出'));
       await tester.pumpAndSettle();
       expect(repository.signOutCallCount, 1);
+    });
+
+    testWidgets('signOut 失敗時顯示錯誤 SnackBar，不讓整個 sheet 崩潰', (tester) async {
+      final repository = ThrowingSignOutAuthRepository(isSignedIn: true);
+      await tester.pumpWidget(buildSubject(authRepository: repository));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('帳號'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('登出'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('登出失敗'), findsOneWidget);
     });
   });
 }
