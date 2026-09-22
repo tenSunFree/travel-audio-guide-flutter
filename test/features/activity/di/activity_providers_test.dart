@@ -51,6 +51,11 @@ void main() {
   });
 
   test('activitiesStreamProvider 初始回傳空清單（此 provider 無背景同步，安全）', () async {
+    // Riverpod 3: container.read() is no longer considered an active listener.
+    // A StreamProvider will be paused if there is no actual listener, and the underlying stream will never actually subscribe or emit.
+    // Here, a no-op listener is used to force the provider to remain active,
+    // so that .future can actually receive the first value from the underlying stream.
+    container.listen(activitiesStreamProvider, (_, _) {});
     final activities = await container.read(activitiesStreamProvider.future);
     expect(activities, isEmpty);
   });

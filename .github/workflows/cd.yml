@@ -17,6 +17,7 @@ jobs:
   release:
     name: Build & Release APK
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -37,7 +38,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.9'
           channel: stable
           cache: true
 
@@ -93,6 +94,16 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Create runtime configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          APP_ENV: production
+          APP_RELEASE: flutter-travel-audio-guide@${{ github.ref_name }}
+        run: bash scripts/create_runtime_env.sh
+
       - name: Build release APK
         run: |
           flutter build apk --release \
@@ -100,9 +111,7 @@ jobs:
             -t lib/main_production.dart \
             --build-name="${{ env.APP_VERSION }}" \
             --build-number="${{ env.BUILD_NUMBER }}" \
-            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
-            --dart-define=APP_ENV=production \
-            --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ github.ref_name }}
+            --dart-define-from-file=env/ci.json
 
       - name: Extract changelog for current version
         id: changelog

@@ -21,7 +21,7 @@ if [ ! -f "$ENV_FILE" ]; then
   echo "請照以下步驟建立："
   echo "  1. cp env/example.json env/dev.json"
   echo "  2. 用編輯器打開 env/dev.json"
-  echo "  3. 填入你的 SENTRY_DSN"
+  echo "  3. 填入 SUPABASE_URL、SUPABASE_PUBLISHABLE_KEY、BACKEND_BASE_URL 等環境設定"
   echo ""
   exit 1
 fi
@@ -30,6 +30,7 @@ DEVICE=${1:-""}
 
 echo ""
 echo "啟動開發模式..."
+echo "    flavor   : staging"
 echo "    env file : $ENV_FILE"
 if [ -n "$DEVICE" ]; then
   echo "    device   : $DEVICE"
@@ -38,9 +39,13 @@ echo ""
 
 if [ -n "$DEVICE" ]; then
   $FLUTTER_CMD run \
+    --flavor staging \
+    -t lib/main_staging.dart \
     --dart-define-from-file="$ENV_FILE" \
     --device-id="$DEVICE"
 else
   $FLUTTER_CMD run \
+    --flavor staging \
+    -t lib/main_staging.dart \
     --dart-define-from-file="$ENV_FILE"
 fi

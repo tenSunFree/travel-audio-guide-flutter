@@ -30,7 +30,7 @@ if [ ! -f "env/dev.json" ]; then
     echo ""
     echo "==> Create env/dev.json"
     cp env/example.json env/dev.json
-    echo "The env/dev.json file has been created. Please fill in the confidential values such as SENTRY_DSN yourself."
+    echo "The env/dev.json file has been created. Please fill in the required runtime configuration values."
 else
     echo ""
     echo "[OK] The env/dev.json file already exists, so we will skip creating it."

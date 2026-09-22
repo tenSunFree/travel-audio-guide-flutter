@@ -2,8 +2,7 @@ enum ActivitySortOrder {
   beginAsc,
   beginDesc,
   nameAZ,
-  distanceAsc
-  ;
+  distanceAsc;
 
   String get label => switch (this) {
     ActivitySortOrder.beginAsc => '開始日期（近→遠）',
@@ -17,8 +16,7 @@ enum ActivityStatusFilter {
   all,
   ongoing,
   upcoming,
-  today
-  ;
+  today;
 
   String get label => switch (this) {
     ActivityStatusFilter.all => '全部活動',
@@ -40,8 +38,7 @@ enum ActivityStatusFilter {
 enum ActivityFeeFilter {
   all,
   free,
-  paid
-  ;
+  paid;
 
   String get label => switch (this) {
     ActivityFeeFilter.all => '全部',

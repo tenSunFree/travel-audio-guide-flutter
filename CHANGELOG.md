@@ -2,6 +2,28 @@
 
 ---
 
+## v1.1.0 - 2026-09-13
+
+### Added
+- Supabase authentication integrated with the Go backend profile API
+- Guest-first login flow — logging in is now optional; the router only gates protected paths instead of the whole app
+- Unified runtime environment configuration across local development and CI
+
+### Fixed
+- Hardened 401 sign-out handling, login state flags, and profile account isolation
+- Addressed CodeRabbit review findings on the auth flow: 401 sign-out, signup session propagation, reactive auth state, and stale profile request handling
+- Restored public constructor parameter names on `HomeRepository`, `ActivityRepositoryImpl`, `AudioGuideRepositoryImpl`, and `AudioGuideListController`, broken by the `flutter_riverpod` 3.x upgrade, and added test coverage for the resulting `AsyncValue` fallback branches
+
+### Internal
+- Upgraded `flutter_riverpod` to 3.x: migrated legacy `StateNotifier`/`StateNotifierProvider` usage to `package:flutter_riverpod/legacy.dart`, replaced `AsyncValue.valueOrNull` with `.value`, and updated tests for Riverpod 3's stricter provider-pause semantics
+- Documented remaining legacy `StateNotifier` usage pending a follow-up migration to `Notifier`/`AsyncNotifier`
+- Bumped the FVM-pinned Flutter SDK to 3.44.9, and upgraded the Flutter SDK used in CI and the Android build config to match
+- Upgraded `share_plus`, `talker`, and `geolocator`, resolving `win32` version conflicts
+- Bumped `meta` and `test_api` transitive dependency versions
+- Added unit and widget tests for the auth and profile features
+
+---
+
 ## v1.0.9 - 2026-08-16
 
 ### Fixed

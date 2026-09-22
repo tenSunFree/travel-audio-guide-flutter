@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_travel_audio_guide/core/analytics/analytics_service.dart';
+import 'package:flutter_travel_audio_guide/core/router/auth_redirect.dart';
 import 'package:flutter_travel_audio_guide/core/router/loaders/activity_detail_loader.dart';
 import 'package:flutter_travel_audio_guide/core/router/loaders/attraction_detail_loader.dart';
 import 'package:flutter_travel_audio_guide/core/router/loaders/audio_guide_detail_loader.dart';
@@ -9,6 +10,8 @@ import 'package:flutter_travel_audio_guide/core/widgets/route_error_page.dart';
 import 'package:flutter_travel_audio_guide/features/activity/domain/entities/activity.dart';
 import 'package:flutter_travel_audio_guide/features/attraction/domain/entities/attraction.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/domain/entities/audio_guide.dart';
+import 'package:flutter_travel_audio_guide/features/auth/di/auth_providers.dart';
+import 'package:flutter_travel_audio_guide/features/auth/presentation/pages/login_page.dart';
 import 'package:flutter_travel_audio_guide/features/home/presentation/pages/main_tab_page.dart';
 import 'package:flutter_travel_audio_guide/features/onboarding/di/onboarding_providers.dart';
 import 'package:flutter_travel_audio_guide/features/onboarding/presentation/pages/welcome_page.dart';
@@ -22,6 +25,9 @@ class AppRoutes {
   // Splash / Onboarding
   static const splash = '/splash';
   static const welcome = '/welcome';
+
+  // Auth
+  static const login = '/login';
 
   // Homepage (Tab root page)
   static const home = '/';
@@ -74,21 +80,33 @@ class AppRoutes {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final notifier = ValueNotifier<bool>(ref.read(onboardingProvider));
-  ref.listen<bool>(onboardingProvider, (_, next) => notifier.value = next);
-  ref.onDispose(notifier.dispose);
+  // Whether the welcome page has been seen
+  final hasSeenNotifier = ValueNotifier<bool>(ref.read(onboardingProvider));
+  ref.listen<bool>(
+    onboardingProvider,
+    (_, next) => hasSeenNotifier.value = next,
+  );
+  ref.onDispose(hasSeenNotifier.dispose);
+  // Whether the user is signed in with Supabase
+  final signedInNotifier = ValueNotifier<bool>(
+    ref.read(authStateChangesProvider).value ?? false,
+  );
+  ref.listen(authStateChangesProvider, (_, next) {
+    next.whenData((signedIn) => signedInNotifier.value = signedIn);
+  });
+  ref.onDispose(signedInNotifier.dispose);
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: kDebugMode,
     observers: [SentryNavigatorObserver(), AnalyticsService.observer],
-    refreshListenable: notifier,
+    refreshListenable: Listenable.merge([hasSeenNotifier, signedInNotifier]),
     redirect: (context, state) {
-      final hasSeen = notifier.value;
-      final location = state.matchedLocation;
-      if (hasSeen && location == AppRoutes.welcome) {
-        return AppRoutes.home;
-      }
-      return null;
+      return resolveAuthRedirect(
+        hasSeenWelcome: hasSeenNotifier.value,
+        signedIn: signedInNotifier.value,
+        location: state.matchedLocation,
+        requestedLocation: state.uri.toString(),
+      );
     },
     routes: [
       // Splash / Onboarding
@@ -99,6 +117,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.welcome,
         builder: (context, state) => const WelcomePage(),
+      ),
+      // Auth
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginPage(),
       ),
       // Home
       GoRoute(

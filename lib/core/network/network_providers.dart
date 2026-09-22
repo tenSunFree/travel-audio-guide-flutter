@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_travel_audio_guide/core/constants/api_constants.dart';
+import 'package:flutter_travel_audio_guide/core/constants/backend_api_constants.dart';
+import 'package:flutter_travel_audio_guide/core/network/auth_interceptor.dart';
 import 'package:flutter_travel_audio_guide/core/network/dio_log_filter.dart';
 import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 import 'package:sentry_dio/sentry_dio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:talker_dio_logger/talker_dio_logger.dart';
 
 class _RetryInterceptor extends Interceptor {
@@ -73,6 +76,38 @@ final dioProvider = Provider<Dio>((ref) {
       talker: AppLogger.talker,
       settings: const TalkerDioLoggerSettings(
         printRequestHeaders: true,
+        requestFilter: DioLogFilter.shouldLogRequest,
+        responseFilter: DioLogFilter.shouldLogResponse,
+        errorFilter: DioLogFilter.shouldLogError,
+      ),
+    ),
+  );
+  return dio;
+});
+
+/// For calling Go backend endpoints (/api/v1/*). Automatically includes Supabase JWT.
+final backendDioProvider = Provider<Dio>((ref) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: BackendApiConstants.baseUrl,
+      headers: BackendApiConstants.defaultHeaders,
+      connectTimeout: BackendApiConstants.connectTimeout,
+      receiveTimeout: BackendApiConstants.receiveTimeout,
+      sendTimeout: BackendApiConstants.sendTimeout,
+    ),
+  );
+  dio.interceptors.add(AuthInterceptor(Supabase.instance.client));
+  dio.addSentry(captureFailedRequests: false);
+  dio.interceptors.add(
+    TalkerDioLogger(
+      talker: AppLogger.talker,
+      settings: const TalkerDioLoggerSettings(
+        // This client carries the Supabase JWT and profile PII (email,
+        // display name, avatar URL) in request/response bodies — never
+        // print payloads for it, only method/path/status.
+        printRequestData: false,
+        printResponseData: false,
+        printErrorData: false,
         requestFilter: DioLogFilter.shouldLogRequest,
         responseFilter: DioLogFilter.shouldLogResponse,
         errorFilter: DioLogFilter.shouldLogError,

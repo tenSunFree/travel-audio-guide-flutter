@@ -16,6 +16,7 @@ jobs:
   deploy-rc:
     name: Build & Distribute RC APK
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout source code
@@ -30,7 +31,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.9'
           channel: stable
           cache: true
 
@@ -118,15 +119,23 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Create runtime configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          APP_ENV: rc
+          APP_RELEASE: flutter-travel-audio-guide@${{ env.TAG }}
+        run: bash scripts/create_runtime_env.sh
+
       - name: Build RC APK
         run: |
           flutter build apk --release \
             --flavor production \
             --build-name="${{ env.APP_VERSION }}" \
             --build-number="${{ env.BUILD_NUMBER }}" \
-            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
-            --dart-define=APP_ENV=rc \
-            --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ env.TAG }} \
+            --dart-define-from-file=env/ci.json \
             -t lib/main_production.dart
 
       - name: Rename APK

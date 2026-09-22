@@ -8,20 +8,17 @@ import 'package:flutter_travel_audio_guide/core/monitoring/monitoring_service.da
 import 'package:flutter_travel_audio_guide/core/preferences/shared_preferences_provider.dart';
 import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 
-/// Shared App launch process, called by the entrypoints of each flavor
-/// (`main_staging.dart` / `main_production.dart`)
-///
-/// [firebaseOptions] are injected by each entrypoint with the corresponding Firebase settings for the environment,
-/// making staging and production point to different Firebase Apps.
 Future<void> bootstrap({required FirebaseOptions firebaseOptions}) async {
   WidgetsFlutterBinding.ensureInitialized();
-  // SharedPreferencesWithCache must complete await before runApp,
-  // Ensure sharedPreferencesProvider has a value in the first frame,
-  // Prevent GoRouter from receiving an uninitialized state on the first redirect.
   final prefs = await createSharedPreferencesWithCache();
-  // Firebase must be initialized before Sentry.
+  // Initialize Supabase before Firebase
+  await Supabase.initialize(
+    url: const String.fromEnvironment('SUPABASE_URL'),
+    publishableKey: const String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY'),
+  );
   await Firebase.initializeApp(options: firebaseOptions);
   // Injected via CI/CD through --dart-define; default behavior is used when `flutter run` is not specified.
   const sentryDsn = String.fromEnvironment('SENTRY_DSN');

@@ -6,6 +6,7 @@ import 'package:flutter_travel_audio_guide/features/activity/domain/repositories
 class ActivityRepositoryImpl implements ActivityRepository {
   const ActivityRepositoryImpl({
     required ActivityRemoteDataSource remoteDataSource,
+    // ignore: prefer_initializing_formals, public parameter name kept for existing DI/test callers while the field stays private
   }) : _remoteDataSource = remoteDataSource;
 
   final ActivityRemoteDataSource _remoteDataSource;

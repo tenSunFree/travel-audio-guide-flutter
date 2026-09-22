@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/core/monitoring/monitoring_service.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/di/audio_guide_providers.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/domain/entities/audio_playback_state.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/domain/services/audio_playback_service.dart';
 
-final AutoDisposeStateNotifierProviderFamily<
+final StateNotifierProviderFamily<
   AudioPlayerController,
   AudioPlaybackState,
   String

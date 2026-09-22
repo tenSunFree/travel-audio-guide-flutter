@@ -10,7 +10,9 @@ class AudioGuideRepositoryImpl implements AudioGuideRepository {
   const AudioGuideRepositoryImpl({
     required AudioGuideRemoteDataSource remoteDataSource,
     required AudioGuideLocalDataSource localDataSource,
+    // ignore: prefer_initializing_formals, public parameter names kept for existing DI/test callers while the fields stay private
   }) : _remoteDataSource = remoteDataSource,
+       // ignore: prefer_initializing_formals, public parameter names kept for existing DI/test callers while the fields stay private
        _localDataSource = localDataSource;
 
   final AudioGuideRemoteDataSource _remoteDataSource;

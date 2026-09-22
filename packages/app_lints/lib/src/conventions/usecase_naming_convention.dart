@@ -60,12 +60,13 @@ class _Visitor extends SimpleAstVisitor<void> {
     if (!path.contains('/domain/usecases/')) {
       return;
     }
-    final className = node.name.lexeme;
+    final nameToken = node.namePart.typeName;
+    final className = nameToken.lexeme;
     if (_allowedHelperSuffixes.any(className.endsWith)) {
       return;
     }
     if (!className.endsWith('UseCase')) {
-      rule.reportAtToken(node.name);
+      rule.reportAtToken(nameToken);
     }
   }
 }

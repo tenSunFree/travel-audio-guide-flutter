@@ -90,7 +90,7 @@ echo "=== Environment configuration file (env/) ==="
 check_file "dev environment settings"     "env/dev.json"
 check_file "release environment settings" "env/release.json"
 if [ ! -f "env/dev.json" ]; then
-    echo "       Tip: Copy env/example.json to env/dev.json, then enter your SENTRY_DSN."
+    echo "       Tip: Copy env/example.json to env/dev.json, then fill in the required runtime configuration."
 fi
 
 echo ""

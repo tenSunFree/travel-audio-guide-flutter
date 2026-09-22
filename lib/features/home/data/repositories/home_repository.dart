@@ -11,7 +11,9 @@ class HomeRepository {
     required AttractionDao attractionDao,
     required ActivityDao activityDao,
     OpenTimeParser? openTimeParser,
+    // ignore: prefer_initializing_formals, public parameter names kept for the existing provider call site while the fields stay private
   }) : _attractionDao = attractionDao,
+       // ignore: prefer_initializing_formals, public parameter names kept for the existing provider call site while the fields stay private
        _activityDao = activityDao,
        _openTimeParser = openTimeParser ?? const OpenTimeParser();
 

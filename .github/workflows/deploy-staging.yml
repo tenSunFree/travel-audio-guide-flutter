@@ -16,6 +16,7 @@ jobs:
   deploy-staging:
     name: Build & Distribute Staging APK
     runs-on: ubuntu-latest
+    environment: staging
 
     steps:
       - name: Checkout source code
@@ -30,7 +31,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.9'
           channel: stable
           cache: true
 
@@ -90,15 +91,23 @@ jobs:
           echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "APK_NAME=travel-audio-guide-staging-${VERSION}-build-${{ github.run_number }}.apk" >> "$GITHUB_ENV"
 
+      - name: Create runtime configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          APP_ENV: staging
+          APP_RELEASE: flutter-travel-audio-guide@${{ env.APP_VERSION }}-build-${{ github.run_number }}
+        run: bash scripts/create_runtime_env.sh
+
       - name: Build staging APK
         run: |
           flutter build apk --release \
             --flavor staging \
-            --build-name=${{ env.APP_VERSION }} \
-            --build-number=${{ github.run_number }} \
-            --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
-            --dart-define=APP_ENV=staging \
-            --dart-define=APP_RELEASE=flutter-travel-audio-guide@${{ env.APP_VERSION }}-build-${{ github.run_number }} \
+            --build-name="${{ env.APP_VERSION }}" \
+            --build-number="${{ github.run_number }}" \
+            --dart-define-from-file=env/ci.json \
             -t lib/main_staging.dart
 
       - name: Rename APK

@@ -1,5 +1,8 @@
 {
+  "SUPABASE_URL": "https://your_project_ref.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxx",
+  "BACKEND_BASE_URL": "http://localhost:8080",
   "SENTRY_DSN": "https://your_key@your_org.ingest.sentry.io/your_project_id",
-  "APP_ENV": "development/production",
+  "APP_ENV": "development",
   "APP_RELEASE": "flutter-travel-audio-guide@1.0.0"
 }
