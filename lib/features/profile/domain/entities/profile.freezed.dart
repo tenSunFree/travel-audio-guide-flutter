@@ -32,10 +32,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,id,email,displayName,preferredLanguage,createdAt,updatedAt,avatarUrl);
 
-@override
-String toString() {
-  return 'Profile(id: $id, email: $email, displayName: $displayName, preferredLanguage: $preferredLanguage, createdAt: $createdAt, updatedAt: $updatedAt, avatarUrl: $avatarUrl)';
-}
 
 
 }
@@ -211,8 +207,8 @@ return $default(_that.id,_that.email,_that.displayName,_that.preferredLanguage,_
 /// @nodoc
 
 
-class _Profile implements Profile {
-  const _Profile({required this.id, required this.email, required this.displayName, required this.preferredLanguage, required this.createdAt, required this.updatedAt, this.avatarUrl});
+class _Profile extends Profile {
+  const _Profile({required this.id, required this.email, required this.displayName, required this.preferredLanguage, required this.createdAt, required this.updatedAt, this.avatarUrl}): super._();
   
 
 @override final  String id;
@@ -240,10 +236,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,id,email,displayName,preferredLanguage,createdAt,updatedAt,avatarUrl);
 
-@override
-String toString() {
-  return 'Profile(id: $id, email: $email, displayName: $displayName, preferredLanguage: $preferredLanguage, createdAt: $createdAt, updatedAt: $updatedAt, avatarUrl: $avatarUrl)';
-}
 
 
 }

@@ -49,4 +49,12 @@ void main() {
       expect(entity.updatedAt.toUtc(), DateTime.utc(2026, 1, 3, 3, 4, 5));
     });
   });
+
+  group('ProfileModel.toString', () {
+    test('不外洩 email/avatarUrl，只印 id', () {
+      final model = ProfileModel.fromJson(raw);
+      expect(model.toString(), 'ProfileModel(id: uid-1)');
+      expect(model.toString(), isNot(contains(raw['email'])));
+    });
+  });
 }

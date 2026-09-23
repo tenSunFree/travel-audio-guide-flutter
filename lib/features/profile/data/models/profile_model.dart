@@ -30,6 +30,11 @@ abstract class ProfileModel with _$ProfileModel {
   factory ProfileModel.fromJson(Map<String, dynamic> json) =>
       _$ProfileModelFromJson(json);
 
+  // Avoid leaking PII (email, avatarUrl) into logs via the generated
+  // toString(), which TalkerDioLogger / TalkerRiverpodObserver may print.
+  @override
+  String toString() => 'ProfileModel(id: $id)';
+
   Profile toEntity() => Profile(
     id: id,
     email: email,

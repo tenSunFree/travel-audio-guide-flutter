@@ -102,7 +102,12 @@ final backendDioProvider = Provider<Dio>((ref) {
     TalkerDioLogger(
       talker: AppLogger.talker,
       settings: const TalkerDioLoggerSettings(
-        // Do not print headers for auth APIs to avoid logging JWT
+        // This client carries the Supabase JWT and profile PII (email,
+        // display name, avatar URL) in request/response bodies — never
+        // print payloads for it, only method/path/status.
+        printRequestData: false,
+        printResponseData: false,
+        printErrorData: false,
         requestFilter: DioLogFilter.shouldLogRequest,
         responseFilter: DioLogFilter.shouldLogResponse,
         errorFilter: DioLogFilter.shouldLogError,

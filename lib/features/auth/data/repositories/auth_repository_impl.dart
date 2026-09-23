@@ -15,11 +15,24 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  bool get isSignedIn => _dataSource.currentSession != null;
+  bool get isSignedIn {
+    // Session.isExpired is a temporary validity guard for the window
+    // between Supabase.initialize() restoring a stale local session and
+    // supabase_flutter's background auto-refresh completing. Do NOT call
+    // signOut() here just because the session is expired — the SDK will
+    // refresh it (or sign the user out itself) and emit a fresh
+    // AuthState via onAuthStateChange.
+    final session = _dataSource.currentSession;
+    return session != null && !session.isExpired;
+  }
 
   @override
-  Stream<bool> get authStateChanges =>
-      _dataSource.onAuthStateChange.map((state) => state.session != null);
+  Stream<bool> get authStateChanges => _dataSource.onAuthStateChange.map((
+    state,
+  ) {
+    final session = state.session;
+    return session != null && !session.isExpired;
+  });
 
   @override
   Future<void> signInWithPassword({

@@ -35,10 +35,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,id,email,createdAt,updatedAt,displayName,avatarUrl,preferredLanguage);
 
-@override
-String toString() {
-  return 'ProfileModel(id: $id, email: $email, createdAt: $createdAt, updatedAt: $updatedAt, displayName: $displayName, avatarUrl: $avatarUrl, preferredLanguage: $preferredLanguage)';
-}
 
 
 }
@@ -246,10 +242,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,id,email,createdAt,updatedAt,displayName,avatarUrl,preferredLanguage);
 
-@override
-String toString() {
-  return 'ProfileModel(id: $id, email: $email, createdAt: $createdAt, updatedAt: $updatedAt, displayName: $displayName, avatarUrl: $avatarUrl, preferredLanguage: $preferredLanguage)';
-}
 
 
 }
