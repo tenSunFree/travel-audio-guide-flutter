@@ -1,4 +1,4 @@
-.PHONY: setup doctor format check coverage secret-scan hooks test analyze build-staging
+.PHONY: setup doctor format check coverage secret-scan hooks test analyze build-staging integration-test
 
 setup:
 	bash scripts/bootstrap.sh
@@ -29,3 +29,9 @@ analyze:
 
 build-staging:
 	@source scripts/_fvm.sh && $$FLUTTER_CMD build apk --debug --flavor staging -t lib/main_staging.dart
+
+# Slow: needs a running emulator/device. Not part of `make check` / pre-push.
+# DEVICE_ID=emulator-5554 make integration-test
+# TARGET=integration_test/browse_flow_test.dart make integration-test
+integration-test:
+	bash scripts/integration_test.sh

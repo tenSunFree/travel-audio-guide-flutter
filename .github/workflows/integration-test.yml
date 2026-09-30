@@ -1,0 +1,122 @@
+name: Integration Test
+
+# Phase 1: report-only. Do NOT add this job to branch protection required
+# checks until flaky rate / runtime / emulator stability have been observed.
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  push:
+    branches:
+      - 'release/**'
+  schedule:
+    # Nightly at 02:00 Asia/Taipei (18:00 UTC).
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.9'
+  EMULATOR_API_LEVEL: 34
+  EMULATOR_TARGET: google_apis
+  EMULATOR_ARCH: x86_64
+
+jobs:
+  android-integration:
+    name: Android emulator — critical flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Fork PRs and Dependabot PRs cannot read repository secrets, and the
+    # staging build needs google-services.json from secrets. Skip them
+    # (the job shows as "skipped", not failed).
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.login != 'dependabot[bot]')
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Only the staging google-services.json is required: the hermetic tests
+      # never call Firebase/Supabase/Sentry, and they do not compile
+      # lib/main_*.dart, so the Dart firebase_options files are not needed.
+      - name: Restore staging google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_STAGING_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_STAGING_BASE64" ]; then
+            echo "::error::Missing secret: GOOGLE_SERVICES_JSON_STAGING_BASE64"
+            exit 1
+          fi
+          mkdir -p android/app/src/staging
+          printf '%s' "$GOOGLE_SERVICES_JSON_STAGING_BASE64" | base64 --decode > android/app/src/staging/google-services.json
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.EMULATOR_API_LEVEL }}-${{ env.EMULATOR_TARGET }}-${{ env.EMULATOR_ARCH }}
+
+      - name: Create AVD snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.EMULATOR_API_LEVEL }}
+          target: ${{ env.EMULATOR_TARGET }}
+          arch: ${{ env.EMULATOR_ARCH }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run integration tests
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # Pin the device so flutter never has to choose between targets.
+          DEVICE_ID: emulator-5554
+          FLAVOR: staging
+        with:
+          api-level: ${{ env.EMULATOR_API_LEVEL }}
+          target: ${{ env.EMULATOR_TARGET }}
+          arch: ${{ env.EMULATOR_ARCH }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash scripts/integration_test.sh

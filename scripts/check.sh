@@ -24,7 +24,7 @@ run_step "app_lints analyze" bash -c "cd packages/app_lints && $DART_CMD analyze
 
 echo ""
 echo "==> dart format check"
-if $DART_CMD format --output=none --set-exit-if-changed lib test pigeons; then
+if $DART_CMD format --output=none --set-exit-if-changed lib test integration_test pigeons; then
     echo "Passed: dart format check"
 else
     echo ""
