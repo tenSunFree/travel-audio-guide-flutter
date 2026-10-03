@@ -31,9 +31,13 @@ void main() {
     await _submitLogin(tester, email: fixtureEmail, password: fixturePassword);
 
     // Session established -> LoginPage pops itself -> account icon shows.
+    // The account icon becomes visible as soon as the pop transition
+    // *starts*, while LoginPage is still animating out, so wait for the
+    // page to be fully gone rather than asserting immediately. If the page
+    // never pops, this times out with a clear message.
     final accountButton = find.byTooltip('帳號');
     await tester.pumpUntilFound(accountButton);
-    expect(find.byType(LoginPage), findsNothing);
+    await tester.pumpUntilGone(find.byType(LoginPage));
     expect(app.auth.signInEmails, [fixtureEmail]);
 
     // Account sheet shows the signed-in email.
