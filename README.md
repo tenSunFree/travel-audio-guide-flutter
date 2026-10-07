@@ -12,7 +12,7 @@
 [![Data](https://img.shields.io/badge/Data-Offline--First%20%2B%20Drift-009688)](#offline-first-experience)
 [![Auth](https://img.shields.io/badge/Auth-Supabase-3FCF8E?logo=supabase&logoColor=white)](#authentication--profile)
 [![Interop](https://img.shields.io/badge/Interop-Pigeon-673AB7)](https://pub.dev/packages/pigeon)
-[![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget-FF9800)](#testing)
+[![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget%20%2B%20Integration-FF9800)](#testing)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-analytics)
 [![Analytics](https://img.shields.io/badge/Analytics-Firebase-FFCA28?logo=firebase&logoColor=black)](#observability-and-analytics)
 [![Distribution](https://img.shields.io/badge/Distribution-Firebase%20App%20Distribution-FFCA28?logo=firebase&logoColor=black)](#git-workflow--cicd)
@@ -204,6 +204,18 @@ below for how the two sides fit together.
   report via `genhtml` or `lcov-viewer` for file-by-file and line-by-line inspection
 - Test coverage is tracked via Codecov and uploaded automatically from CI (
   `flutter test --coverage` → `coverage/lcov.info`)
+- App-level integration tests under `integration_test/` run the real app on a device or emulator
+  and cover four critical user journeys: guest-first browsing (splash → welcome → home → attraction
+  list → detail), offline-first behavior (cached Drift data stays visible when the API fails),
+  audio guide download → real file write → playback, and optional login → logout back to guest
+- Integration tests are hermetic: the real `GoRouter`, Riverpod graph, Drift database, controllers,
+  and UI run unchanged, and only the external boundaries are faked — the HTTP transport
+  (`HttpClientAdapter`), Supabase Auth, audio playback, notifications, and analytics — so they need
+  no network, no secrets beyond the staging Firebase file, and never touch production data
+- The fake API is strict: any request it does not recognize returns 404 and fails the test, so a new
+  or renamed endpoint cannot be silently swallowed
+- Integration tests are intentionally excluded from `flutter test --coverage` and Codecov; their
+  signal is "critical journeys pass", not a coverage percentage
 
 ### Code Quality
 
@@ -344,8 +356,13 @@ retry.
 - Optional Flutter version pinning via [FVM](https://fvm.app/): a shared helper (`scripts/_fvm.sh`)
   is sourced by every script under `scripts/`, so they all automatically switch from `flutter`/
   `dart` to `fvm flutter`/`fvm dart` once `.fvmrc` is present
+- Integration test runner (`scripts/integration_test.sh`) runs `integration_test/` on a connected
+  device or emulator with the `staging` flavor; `DEVICE_ID`, `FLAVOR`, and `TARGET` (a single test
+  file) are configurable through environment variables. It is deliberately **not** part of
+  `scripts/check.sh` or the `pre-push` hook, so the everyday feedback loop stays fast
 - `Makefile` wraps the most common scripts (`make setup`, `make format`, `make check`,
-  `make coverage`, `make secret-scan`, `make doctor`) for a shorter command surface
+  `make coverage`, `make integration-test`, `make secret-scan`, `make doctor`) for a shorter command
+  surface
 
 ### Git Workflow & CI/CD
 
@@ -365,6 +382,12 @@ retry.
   routine version updates target `develop`)
 - Configured GitHub Actions CI for Pull Requests, including Dart format checks, static analysis,
   unit tests, and debug APK builds for both `staging` and `production` flavors
+- Added a separate `Integration Test` workflow (`integration-test.yml`) that runs the integration
+  tests on an Android emulator (API 34, `pixel_6` profile) for pull requests to `main`/`develop`,
+  `release/**` pushes, a nightly schedule, and manual dispatch. Fork and Dependabot PRs cannot read
+  the staging Firebase secret, so the job is skipped for them instead of failing. It is
+  report-only for now: it should not become a required check until its flaky rate and runtime have
+  been observed
 - Configured merge requirements so CI checks must pass and branches must be up to date before
   merging
 - Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds,
@@ -517,6 +540,10 @@ retry.
 - flutter_test  
   Official Flutter testing framework (Provides unit and widget testing utilities for validating
   business logic, UI behavior, and regression scenarios)
+- integration_test  
+  Official Flutter integration testing package (Runs the real app on a device or emulator to verify
+  complete user journeys across routing, dependency injection, Drift, the file system, and the UI,
+  with only external services faked)
 - mocktail  
   Mock library for Dart unit testing (Stubs repository and data source dependencies to isolate
   domain and data layer logic; verifies interaction behavior with `verify` and `verifyNever` without
@@ -598,6 +625,7 @@ This checks your local environment, installs Flutter dependencies, creates `env/
 bash scripts/format.sh       # auto-format Dart files (modifies files)
 bash scripts/check.sh        # local CI checks with coverage validation — never modifies files
 bash scripts/coverage.sh     # generate coverage + local HTML report when tooling is available
+bash scripts/integration_test.sh  # run integration tests on a connected device/emulator (slow)
 bash scripts/secret-scan.sh  # full repo + git-history secret scan
 bash scripts/doctor.sh       # check local environment
 python scripts/quality/sort_pubspec_dependencies.py            # auto-fix pubspec.yaml dependency ordering
@@ -611,6 +639,7 @@ make setup
 make format
 make check
 make coverage
+make integration-test
 make secret-scan
 make doctor
 ```
@@ -641,6 +670,40 @@ flutter analyze
 - After changing `analysis_options.yaml` or `packages/app_lints`, restart the Dart Analysis Server
   if IDE diagnostics appear stale; command-line analysis can be rerun directly with
   `flutter analyze`
+
+### Integration Tests
+
+The `integration_test/` suite runs the real app on a connected Android device or emulator. It is
+kept separate from `make check` because it builds and installs an APK, which is slow.
+
+```bash
+# 1. Start an emulator or connect a device, then find its id
+flutter devices
+
+# 2. Run every integration test
+DEVICE_ID=<device-id> make integration-test
+
+# Run a single journey
+TARGET=integration_test/browse_flow_test.dart DEVICE_ID=<device-id> make integration-test
+```
+
+Prerequisites and behavior:
+
+- `android/app/src/staging/google-services.json` must exist, because the staging flavor cannot be
+  built without it (the script checks and fails early with a clear message). No `env/*.json` runtime
+  secrets are required: the tests never initialize Supabase, Firebase, or Sentry
+- Tests pump the real `TravelAudioGuideApp` through `integration_test/helpers/test_app.dart` instead
+  of `bootstrap()`, replacing only external boundaries with fakes from
+  `integration_test/helpers/fakes.dart`
+- `pumpUntilFound` / `pumpUntilGone` (`helpers/pump_until.dart`) are used instead of
+  `pumpAndSettle()`, because the splash animation and skeleton loaders animate indefinitely
+- The audio journey writes a real file to the app documents directory and removes only that one
+  file before and after the test, so other downloads on the device are never touched
+- Large `[exception] sync failed` logs in the offline tests are expected: the fake API is
+  deliberately offline to verify that cached data stays visible
+
+CI runs the same suite in `.github/workflows/integration-test.yml` (see
+[Git Workflow & CI/CD](#git-workflow--cicd)).
 
 ### Local Coverage Report
 
@@ -717,7 +780,7 @@ Installed hooks:
 
 Runs fast, staged-only checks before every commit:
 
-- Dart format validation for `lib`, `test`, and `pigeons`
+- Dart format validation for `lib`, `test`, `integration_test`, and `pigeons`
 - Secret scan on staged changes:
   - Uses `gitleaks` when it is installed
   - Falls back to a lightweight built-in regex-based scanner with a warning when `gitleaks` is not
@@ -751,7 +814,8 @@ The local check script validates:
 - Staging flavor debug APK build
 
 This mirrors the main GitHub Actions CI checks locally, so common issues can be caught before
-pushing.
+pushing. Integration tests are not included here because they need a device or emulator and are
+slow; run them with `make integration-test` (see [Integration Tests](#integration-tests)).
 
 Bypass any hook (not recommended): `git commit --no-verify` / `git push --no-verify`.
 
@@ -929,6 +993,7 @@ travel-audio-guide-flutter
 │  ├─ create_runtime_env.sh             # CI-only: builds env/ci.json from GitHub vars/secrets
 │  ├─ doctor.sh
 │  ├─ format.sh
+│  ├─ integration_test.sh               # Runs integration_test/ on a device/emulator (not in check.sh)
 │  ├─ release.sh
 │  ├─ run_dev.sh
 │  ├─ secret-scan.sh
@@ -946,6 +1011,16 @@ travel-audio-guide-flutter
 │  ├─ app
 │  │  └─ app_smoke_test.dart
 │  └─ test_helpers                  # Shared fixtures, fakes, in-memory DB setup
+├─ integration_test                 # App-level tests run on a device/emulator (hermetic)
+│  ├─ helpers
+│  │  ├─ fakes.dart                 # Fake HTTP adapter, auth, playback, notifications, analytics
+│  │  ├─ fixtures.dart              # Test-only attraction / audio guide fixture data
+│  │  ├─ pump_until.dart            # pumpUntilFound / pumpUntilGone (replaces pumpAndSettle)
+│  │  └─ test_app.dart              # pumpTestApp(): real app + hermetic provider overrides
+│  ├─ browse_flow_test.dart         # Splash → welcome → home → attraction list → detail
+│  ├─ offline_flow_test.dart        # Cached Drift data survives API failure
+│  ├─ audio_flow_test.dart          # Download → file write → play → pause
+│  └─ auth_flow_test.dart           # Optional login → logout back to guest
 ├─ Makefile
 ├─ pubspec.lock
 ├─ pubspec.yaml
