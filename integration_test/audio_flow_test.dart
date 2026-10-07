@@ -24,9 +24,11 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   // Downloads land in the real app documents directory, which survives
-  // between test runs on the same device. Start and finish clean.
-  setUp(_deleteDownloadedAudio);
-  tearDown(_deleteDownloadedAudio);
+  // between test runs on the same device. Remove only the one file this test
+  // creates, before and after: a leftover file would make the app skip the
+  // download entirely, but other downloads on the device must stay untouched.
+  setUp(_deleteTestAudioFile);
+  tearDown(_deleteTestAudioFile);
 
   testWidgets('語音導覽：下載 → 寫入本機檔案 → 播放 → 暫停', (tester) async {
     final app = await pumpTestApp(
@@ -99,10 +101,21 @@ void main() {
   });
 }
 
-Future<void> _deleteDownloadedAudio() async {
+/// Deletes only the fixture guide's file.
+///
+/// Mirrors `AudioGuideLocalDataSource._buildFileName`: `{id}_{title}.mp3`.
+/// [fixtureAudioGuideTitle] must therefore stay free of characters that the
+/// app sanitises (whitespace and `\ / : * ? " < > |`).
+Future<void> _deleteTestAudioFile() async {
   final documents = await getApplicationDocumentsDirectory();
-  final folder = Directory(p.join(documents.path, 'audio_guides'));
-  if (folder.existsSync()) {
-    await folder.delete(recursive: true);
+  final file = File(
+    p.join(
+      documents.path,
+      'audio_guides',
+      '${fixtureAudioGuideId}_$fixtureAudioGuideTitle.mp3',
+    ),
+  );
+  if (file.existsSync()) {
+    await file.delete();
   }
 }

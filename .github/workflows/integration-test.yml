@@ -30,6 +30,9 @@ env:
   EMULATOR_API_LEVEL: 34
   EMULATOR_TARGET: google_apis
   EMULATOR_ARCH: x86_64
+  # Without a profile the emulator defaults to a tiny 320x640 screen, where
+  # layouts that are fine on real phones can overflow. Pin a real phone size.
+  EMULATOR_PROFILE: pixel_6
 
 jobs:
   android-integration:
@@ -47,6 +50,10 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          # No later step needs authenticated git access, so do not leave the
+          # token in .git/config while PR code runs.
+          persist-credentials: false
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -92,7 +99,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.EMULATOR_API_LEVEL }}-${{ env.EMULATOR_TARGET }}-${{ env.EMULATOR_ARCH }}
+          key: avd-${{ env.EMULATOR_API_LEVEL }}-${{ env.EMULATOR_TARGET }}-${{ env.EMULATOR_ARCH }}-${{ env.EMULATOR_PROFILE }}
 
       - name: Create AVD snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -101,6 +108,7 @@ jobs:
           api-level: ${{ env.EMULATOR_API_LEVEL }}
           target: ${{ env.EMULATOR_TARGET }}
           arch: ${{ env.EMULATOR_ARCH }}
+          profile: ${{ env.EMULATOR_PROFILE }}
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
@@ -116,6 +124,7 @@ jobs:
           api-level: ${{ env.EMULATOR_API_LEVEL }}
           target: ${{ env.EMULATOR_TARGET }}
           arch: ${{ env.EMULATOR_ARCH }}
+          profile: ${{ env.EMULATOR_PROFILE }}
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
