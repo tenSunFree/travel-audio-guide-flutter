@@ -8,7 +8,7 @@
 #   cd "$(dirname "$0")/.."
 #   source "scripts/_fvm.sh"
 #   $FLUTTER_CMD pub get
-#   $DART_CMD format lib test pigeons
+#   $DART_CMD format lib test integration_test pigeons
 #
 # Note: on Windows, `dart pub global activate fvm` typically installs a
 # `fvm.bat` shim rather than a bare `fvm` executable. Git Bash's `command -v`

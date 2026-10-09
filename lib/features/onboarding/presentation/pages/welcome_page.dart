@@ -116,125 +116,143 @@ class _WelcomePageState extends ConsumerState<WelcomePage>
         children: [
           const RepaintBoundary(child: _StaticMapBackground()),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-              child: Column(
-                children: [
-                  const Spacer(),
-                  FadeTransition(
-                    opacity: _heroFade,
-                    child: SlideTransition(
-                      position: _heroSlide,
-                      child: const _HeroCard(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Scrollable, so small screens (e.g. 320x640) or large system
+                // font sizes never overflow. ConstrainedBox + IntrinsicHeight
+                // keep the Spacers centring the content when there is spare
+                // room, exactly like the previous fixed layout.
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      // 28 (top) + 24 (bottom) padding.
+                      minHeight: constraints.maxHeight > 52
+                          ? constraints.maxHeight - 52
+                          : 0,
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  FadeTransition(
-                    opacity: _titleFade,
-                    child: SlideTransition(
-                      position: _titleSlide,
-                      child: const Column(
+                    child: IntrinsicHeight(
+                      child: Column(
                         children: [
-                          Text(
-                            '聽見台北的城市故事',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: _textDark,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                          const Spacer(),
+                          FadeTransition(
+                            opacity: _heroFade,
+                            child: SlideTransition(
+                              position: _heroSlide,
+                              child: const _HeroCard(),
                             ),
                           ),
-                          SizedBox(height: 10),
-                          Text(
-                            '收藏景點、下載語音導覽，\n把想去的活動變成你的旅程清單。',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: _textSoft,
-                              fontSize: 14,
-                              height: 1.65,
+                          const SizedBox(height: 28),
+                          FadeTransition(
+                            opacity: _titleFade,
+                            child: SlideTransition(
+                              position: _titleSlide,
+                              child: const Column(
+                                children: [
+                                  Text(
+                                    '聽見台北的城市故事',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _textDark,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    '收藏景點、下載語音導覽，\n把想去的活動變成你的旅程清單。',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _textSoft,
+                                      fontSize: 14,
+                                      height: 1.65,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          FadeTransition(
+                            opacity: _tile1Fade,
+                            child: const _FeatureTile(
+                              icon: Icons.headphones_rounded,
+                              title: '語音導覽',
+                              description: '邊走邊聽景點故事',
+                              badgeText: 'Audio',
+                              accentColor: Color(0xFF007F83),
+                              accentBg: Color(0xFFEAF7F7),
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          FadeTransition(
+                            opacity: _tile2Fade,
+                            child: const _FeatureTile(
+                              icon: Icons.download_done_rounded,
+                              title: '離線播放',
+                              description: '下載後沒有網路也能聽',
+                              badgeText: 'Offline',
+                              accentColor: Color(0xFF9E6A00),
+                              accentBg: Color(0xFFFFF3D6),
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          FadeTransition(
+                            opacity: _tile3Fade,
+                            child: const _FeatureTile(
+                              icon: Icons.notifications_active_rounded,
+                              title: '活動提醒',
+                              description: '展覽、活動時間不再錯過',
+                              badgeText: 'Reminder',
+                              accentColor: Color(0xFFB03A20),
+                              accentBg: Color(0xFFFFF0EB),
+                            ),
+                          ),
+                          const Spacer(),
+                          FadeTransition(
+                            opacity: _buttonFade,
+                            child: SlideTransition(
+                              position: _buttonSlide,
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 52,
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: _teal,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: _isLoading ? null : _onStart,
+                                  icon: _isLoading
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.explore_outlined),
+                                  label: Text(
+                                    _isLoading ? '準備中...' : '開始探索',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 28),
-                  FadeTransition(
-                    opacity: _tile1Fade,
-                    child: const _FeatureTile(
-                      icon: Icons.headphones_rounded,
-                      title: '語音導覽',
-                      description: '邊走邊聽景點故事',
-                      badgeText: 'Audio',
-                      accentColor: Color(0xFF007F83),
-                      accentBg: Color(0xFFEAF7F7),
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  FadeTransition(
-                    opacity: _tile2Fade,
-                    child: const _FeatureTile(
-                      icon: Icons.download_done_rounded,
-                      title: '離線播放',
-                      description: '下載後沒有網路也能聽',
-                      badgeText: 'Offline',
-                      accentColor: Color(0xFF9E6A00),
-                      accentBg: Color(0xFFFFF3D6),
-                    ),
-                  ),
-                  const SizedBox(height: 9),
-                  FadeTransition(
-                    opacity: _tile3Fade,
-                    child: const _FeatureTile(
-                      icon: Icons.notifications_active_rounded,
-                      title: '活動提醒',
-                      description: '展覽、活動時間不再錯過',
-                      badgeText: 'Reminder',
-                      accentColor: Color(0xFFB03A20),
-                      accentBg: Color(0xFFFFF0EB),
-                    ),
-                  ),
-                  const Spacer(),
-                  FadeTransition(
-                    opacity: _buttonFade,
-                    child: SlideTransition(
-                      position: _buttonSlide,
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _teal,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          onPressed: _isLoading ? null : _onStart,
-                          icon: _isLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.explore_outlined),
-                          label: Text(
-                            _isLoading ? '準備中...' : '開始探索',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

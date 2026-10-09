@@ -111,7 +111,7 @@ jobs:
         run: dart format lib/config/firebase/firebase_options_production.dart lib/config/firebase/firebase_options_staging.dart
 
       - name: Check Dart format
-        run: dart format --output=none --set-exit-if-changed lib test pigeons
+        run: dart format --output=none --set-exit-if-changed lib test integration_test pigeons
 
       - name: Static analysis
         run: flutter analyze

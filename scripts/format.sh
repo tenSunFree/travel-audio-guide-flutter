@@ -22,7 +22,7 @@ run_step() {
     echo "Passed: $name"
 }
 
-run_step "dart format (lib test pigeons)" $DART_CMD format lib test pigeons
+run_step "dart format (lib test integration_test pigeons)" $DART_CMD format lib test integration_test pigeons
 
 echo ""
 echo "Formatting complete."
