@@ -4,6 +4,7 @@
 [![CD](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml)
 [![Staging Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml)
 [![RC Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml)
+[![Integration Test](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/integration-test.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/integration-test.yml)
 [![codecov](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter/graph/badge.svg)](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44.9-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12.0-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -216,6 +217,9 @@ below for how the two sides fit together.
   or renamed endpoint cannot be silently swallowed
 - Integration tests are intentionally excluded from `flutter test --coverage` and Codecov; their
   signal is "critical journeys pass", not a coverage percentage
+- In CI the integration suite runs on an Android emulator compatibility matrix sampled along
+  independent axes (OS level, screen class, orientation) instead of a full API × device × rotation
+  product; physical-device checks (Pixel and Samsung) remain a manual pre-release step
 
 ### Code Quality
 
@@ -360,6 +364,12 @@ retry.
   device or emulator with the `staging` flavor; `DEVICE_ID`, `FLAVOR`, and `TARGET` (a single test
   file) are configurable through environment variables. It is deliberately **not** part of
   `scripts/check.sh` or the `pre-push` hook, so the everyday feedback loop stays fast
+- CI emulator wrapper (`scripts/ci/run_emulator_tests.sh`) runs inside the emulator job: it waits for
+  a full Android boot, disables auto-rotate, runs `scripts/integration_test.sh` once per requested
+  rotation (`ROTATIONS`), and on failure saves `logcat`, a screenshot, and `dumpsys`/`getprop`
+  snapshots to `build/ci-artifacts/<label>/`. Keeping this logic in a script (instead of the
+  workflow's `script:` input, which is meant to be a single command) also makes it reproducible
+  locally
 - `Makefile` wraps the most common scripts (`make setup`, `make format`, `make check`,
   `make coverage`, `make integration-test`, `make secret-scan`, `make doctor`) for a shorter command
   surface
@@ -383,11 +393,14 @@ retry.
 - Configured GitHub Actions CI for Pull Requests, including Dart format checks, static analysis,
   unit tests, and debug APK builds for both `staging` and `production` flavors
 - Added a separate `Integration Test` workflow (`integration-test.yml`) that runs the integration
-  tests on an Android emulator (API 34, `pixel_6` profile) for pull requests to `main`/`develop`,
-  `release/**` pushes, a nightly schedule, and manual dispatch. Fork and Dependabot PRs cannot read
-  the staging Firebase secret, so the job is skipped for them instead of failing. It is
-  report-only for now: it should not become a required check until its flaky rate and runtime have
-  been observed
+  tests on Android emulators in two tiers: a single **smoke** run (API 36, `pixel_6`) for pull
+  requests to `main`/`develop`, and a sampled **compatibility matrix** (minSdk, production, latest
+  API, small phone, tablet in both orientations) for pull requests to `release/**`, `release/**`
+  pushes, the nightly schedule, and manual `full` dispatch — see
+  [CI Compatibility Matrix](#ci-compatibility-matrix). Fork and Dependabot PRs cannot read the
+  staging Firebase secret, so the job is skipped for them instead of failing. It is report-only for
+  now: only the aggregate `Integration result` check should become required, and only after the
+  flaky rate and runtime have been observed
 - Configured merge requirements so CI checks must pass and branches must be up to date before
   merging
 - Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds,
@@ -705,6 +718,50 @@ Prerequisites and behavior:
 CI runs the same suite in `.github/workflows/integration-test.yml` (see
 [Git Workflow & CI/CD](#git-workflow--cicd)).
 
+#### CI Compatibility Matrix
+
+A `plan` job picks the suite from the trigger, so setup steps (Java, Flutter, KVM, AVD cache) are
+maintained once:
+
+| Trigger                                                                   | Suite                           |
+|---------------------------------------------------------------------------|---------------------------------|
+| Pull request → `main` / `develop`                                         | Smoke                           |
+| Pull request → `release/**`, push → `release/**`, nightly (default branch) | Full compatibility matrix       |
+| Manual (`workflow_dispatch`)                                              | `smoke` or `full` (selectable)  |
+
+The full matrix samples each axis independently — it is deliberately **not** API × device ×
+orientation (3 × 3 × 2 = 18 runs):
+
+| Config        | API | Profile        | Rotations           | Purpose                              |
+|---------------|-----|----------------|---------------------|--------------------------------------|
+| `min-api`     | 26  | `pixel_6`      | natural             | `minSdk` (Health Connect needs 26)   |
+| `production`  | 36  | `pixel_6`      | natural             | Production baseline (Play target)    |
+| `latest`      | 37  | `pixel_6`      | natural             | Newest Android release               |
+| `small-phone` | 36  | `Nexus 5`      | natural             | Small-screen layout / overflow       |
+| `tablet`      | 36  | `pixel_tablet` | natural + 90°       | Large-screen layout in both orientations |
+
+That is 5 emulator configurations and 6 suite runs. Notes:
+
+- Keep the `min-api` entry in sync with `minSdk` in `android/app/build.gradle.kts`
+- A tablet's natural orientation is landscape and a phone's is portrait, so `0 1` covers both
+  orientations on any profile
+- The emulator API level is not the app's `targetSdk`; the latter comes from
+  `flutter.targetSdkVersion`
+- Orientation is runtime state, so it is not part of the AVD cache key; AVD snapshots are cached per
+  API + profile
+- On failure, each job uploads `build/ci-artifacts/<config>-api<N>/` (logcat, screenshot, window and
+  activity dumps, device properties) as a workflow artifact, retained for 7 days
+- The workflow is report-only for now. When it becomes a branch-protection requirement, require only
+  the aggregate **`Integration result`** check (not the individual matrix jobs) and remove
+  `paths-ignore` from the workflow, otherwise a skipped workflow leaves the required check pending
+
+To trigger the full matrix manually: **Actions → Integration Test → Run workflow → suite: `full`**.
+To reproduce a CI run against a local emulator:
+
+```bash
+DEVICE_ID=emulator-5554 ROTATIONS="0 1" LABEL=local bash scripts/ci/run_emulator_tests.sh
+```
+
 ### Local Coverage Report
 
 Run the coverage helper to generate an LCOV report and inspect coverage locally:
@@ -979,6 +1036,8 @@ travel-audio-guide-flutter
 ├─ pigeons
 │  └─ health_connect_api.dart
 ├─ scripts
+│  ├─ ci
+│  │  └─ run_emulator_tests.sh          # CI-only: boot wait, rotation loop, failure diagnostics
 │  ├─ hooks
 │  │  ├─ commit-msg
 │  │  ├─ pre-commit
