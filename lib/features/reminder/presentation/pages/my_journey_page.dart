@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_travel_audio_guide/core/constants/app_colors.dart';
+import 'package:flutter_travel_audio_guide/core/feature_flags/feature_flags.dart';
 import 'package:flutter_travel_audio_guide/core/router/app_router.dart';
 import 'package:flutter_travel_audio_guide/features/auth/di/auth_providers.dart';
 import 'package:flutter_travel_audio_guide/features/reminder/di/reminder_providers.dart';
@@ -10,29 +11,35 @@ import 'package:go_router/go_router.dart';
 /// MyJourney is a Guest feature: it only reads local Drift reminders and has
 /// no auth dependency. The account icon is purely an optional entry point
 /// into Login/Account — it does not gate anything on this page.
+///
+/// The entry point stays hidden while [FeatureFlags.accountEntry] is false.
+/// The auth plumbing underneath (routes, LoginPage) stays in place.
 class MyJourneyPage extends ConsumerWidget {
   const MyJourneyPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final remindersAsync = ref.watch(reminderListProvider);
-    final signedIn = ref.watch(isSignedInProvider);
+    final accountEntryEnabled = ref.watch(accountEntryEnabledProvider);
+    // Not subscribed to auth state while the entry is hidden.
+    final signedIn = accountEntryEnabled && ref.watch(isSignedInProvider);
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
       appBar: AppBar(
         title: const Text('我的旅程'),
         actions: [
-          IconButton(
-            tooltip: signedIn ? '帳號' : '登入以同步',
-            icon: Icon(signedIn ? Icons.person_outline : Icons.login),
-            onPressed: () {
-              if (signedIn) {
-                _showAccountSheet(context, ref);
-              } else {
-                context.push(AppRoutes.login);
-              }
-            },
-          ),
+          if (accountEntryEnabled)
+            IconButton(
+              tooltip: signedIn ? '帳號' : '登入以同步',
+              icon: Icon(signedIn ? Icons.person_outline : Icons.login),
+              onPressed: () {
+                if (signedIn) {
+                  _showAccountSheet(context, ref);
+                } else {
+                  context.push(AppRoutes.login);
+                }
+              },
+            ),
         ],
       ),
       body: remindersAsync.when(

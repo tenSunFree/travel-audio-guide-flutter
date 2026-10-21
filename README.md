@@ -146,8 +146,12 @@ below for how the two sides fit together.
 - Guest-first: attractions, activities, audio guides, offline playback, nearby recommendations, and
   the local journey/reminder list all work without signing in — the app's default route is Home, not
   Login
-- Login is an optional feature, reachable from the account icon on the "My Journey" tab (or
-  automatically when a route explicitly requires an account); it is never the app's forced entrance
+- Login is an optional feature and never the app's forced entrance (a route listed in
+  `protectedPaths` would still redirect to `/login`). The account entry on the "My Journey" tab is
+  currently hidden behind `FeatureFlags.accountEntry` (`lib/core/feature_flags/feature_flags.dart`,
+  default `false`) while login is not shipped. Set the flag to `true` when the login feature is
+  ready for rollout; the auth integration tests enable it explicitly, so the login/logout journey
+  stays covered
 - Email/password authentication via Supabase Auth, with sign-up and sign-in flows
 - Session persistence across app restarts through the Supabase Flutter SDK; no manual token refresh
   logic required
@@ -215,6 +219,8 @@ below for how the two sides fit together.
   no network, no secrets beyond the staging Firebase file, and never touch production data
 - The fake API is strict: any request it does not recognize returns 404 and fails the test, so a new
   or renamed endpoint cannot be silently swallowed
+- `pumpTestApp` defaults to `accountEntryEnabled: false` so integration tests match the shipped
+  state (login entry hidden); only `auth_flow_test.dart` opts in
 - Integration tests are intentionally excluded from `flutter test --coverage` and Codecov; their
   signal is "critical journeys pass", not a coverage percentage
 - In CI the integration suite runs on an Android emulator compatibility matrix sampled along
@@ -966,6 +972,7 @@ travel-audio-guide-flutter
 │  │  ├─ database                   # Drift AppDatabase, DAOs, tables
 │  │  ├─ debug                      # Debug-only app options
 │  │  ├─ error                      # Shared exception types
+│  │  ├─ feature_flags              # Compile-time switches (FeatureFlags.accountEntry, ...)
 │  │  ├─ image                      # Cached network image manager
 │  │  ├─ monitoring                 # MonitoringService (Sentry wrapper)
 │  │  ├─ nearby                     # Location controller, nearby models/utils
@@ -1019,8 +1026,8 @@ travel-audio-guide-flutter
 │     │  │  └─ repositories
 │     │  └─ presentation
 │     │     └─ controllers          # ProfileController (AsyncNotifier)
-│     ├─ reminder                   # Journey reminders, local notifications; MyJourney also hosts
-│     │                             # the optional account entry point into LoginPage
+│     ├─ reminder                   # Journey reminders, local notifications; MyJourney hosts the
+│     │                             # account entry point into LoginPage (hidden by FeatureFlags.accountEntry)
 │     ├─ splash                     # Animated splash screen widgets
 │     └─ step_tracking              # Android step sensor integration (Pigeon-based)
 ├─ packages
@@ -1079,7 +1086,7 @@ travel-audio-guide-flutter
 │  ├─ browse_flow_test.dart         # Splash → welcome → home → attraction list → detail
 │  ├─ offline_flow_test.dart        # Cached Drift data survives API failure
 │  ├─ audio_flow_test.dart          # Download → file write → play → pause
-│  └─ auth_flow_test.dart           # Optional login → logout back to guest
+│  └─ auth_flow_test.dart           # Optional login → logout back to guest (flag enabled in-test)
 ├─ Makefile
 ├─ pubspec.lock
 ├─ pubspec.yaml
