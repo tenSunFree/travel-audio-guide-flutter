@@ -12,12 +12,15 @@ import 'helpers/test_app.dart';
 ///
 /// Guest -> Login -> Session -> Account -> Logout -> back to Guest
 ///
+/// The account entry is hidden in the shipped app (FeatureFlags.accountEntry),
+/// so these tests enable it explicitly to keep the auth journey covered.
+///
 /// Logout must NOT force the user to /login: the app stays usable.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('登入 → 帳號資訊 → 登出後回到訪客狀態（不強制登入）', (tester) async {
-    final app = await pumpTestApp(tester);
+    final app = await pumpTestApp(tester, accountEntryEnabled: true);
 
     // Guest by default.
     await tester.pumpUntilFound(find.byType(NavigationBar));
@@ -54,7 +57,7 @@ void main() {
   });
 
   testWidgets('登入失敗顯示錯誤；按「先逛逛」仍可以訪客身分繼續使用', (tester) async {
-    await pumpTestApp(tester);
+    await pumpTestApp(tester, accountEntryEnabled: true);
 
     await tester.pumpUntilFound(find.byType(NavigationBar));
     await tester.tap(findTab('我的旅程'));

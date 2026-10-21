@@ -9,6 +9,7 @@ import 'package:flutter_travel_audio_guide/core/analytics/analytics_service.dart
 import 'package:flutter_travel_audio_guide/core/constants/api_constants.dart';
 import 'package:flutter_travel_audio_guide/core/database/app_database.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
+import 'package:flutter_travel_audio_guide/core/feature_flags/feature_flags.dart';
 import 'package:flutter_travel_audio_guide/core/network/network_providers.dart';
 import 'package:flutter_travel_audio_guide/core/preferences/shared_preferences_provider.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/di/audio_guide_providers.dart';
@@ -62,6 +63,8 @@ class TestApp {
 /// - To change a default fake (API data, auth behaviour, playback duration,
 ///   notifications), pass your own instance via [api], [auth], [playback]
 ///   or [notifications].
+/// - [accountEntryEnabled] defaults to false so integration tests match the
+///   shipped state (the login entry is hidden). Auth-specific tests opt in.
 /// - To override any *other* provider, use [extraOverrides]. Do not put a
 ///   provider that is already overridden here into [extraOverrides]:
 ///   Riverpod rejects overriding the same provider twice in one scope, so it
@@ -69,6 +72,7 @@ class TestApp {
 Future<TestApp> pumpTestApp(
   WidgetTester tester, {
   bool hasSeenWelcome = true,
+  bool accountEntryEnabled = false,
   FakeTravelApi? api,
   FakeAuthRepository? auth,
   FakeAudioPlaybackService? playback,
@@ -124,6 +128,7 @@ Future<TestApp> pumpTestApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        accountEntryEnabledProvider.overrideWithValue(accountEntryEnabled),
         sharedPreferencesProvider.overrideWithValue(prefs),
         appDatabaseProvider.overrideWithValue(db),
         dioProvider.overrideWithValue(dio),

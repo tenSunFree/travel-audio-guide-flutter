@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_travel_audio_guide/core/feature_flags/feature_flags.dart';
 import 'package:flutter_travel_audio_guide/core/router/app_router.dart';
 import 'package:flutter_travel_audio_guide/features/auth/di/auth_providers.dart';
 import 'package:flutter_travel_audio_guide/features/auth/domain/entities/app_user.dart';
@@ -80,9 +81,11 @@ class ThrowingSignOutAuthRepository extends FakeAuthRepository {
 Widget buildSubject({
   required FakeAuthRepository authRepository,
   Stream<List<Reminder>>? reminders,
+  bool accountEntryEnabled = false,
 }) {
   return ProviderScope(
     overrides: [
+      accountEntryEnabledProvider.overrideWithValue(accountEntryEnabled),
       isSignedInProvider.overrideWithValue(authRepository.isSignedIn),
       authRepositoryProvider.overrideWithValue(authRepository),
       reminderListProvider.overrideWith(
@@ -94,7 +97,8 @@ Widget buildSubject({
 }
 
 /// Variant with a real GoRouter, needed for tests that actually navigate
-/// (guest tapping the account icon pushes /login).
+/// (guest tapping the account icon pushes /login). The account entry is
+/// enabled here on purpose.
 Widget buildSubjectWithRouter({required FakeAuthRepository authRepository}) {
   final router = GoRouter(
     initialLocation: AppRoutes.home,
@@ -108,6 +112,7 @@ Widget buildSubjectWithRouter({required FakeAuthRepository authRepository}) {
   );
   return ProviderScope(
     overrides: [
+      accountEntryEnabledProvider.overrideWithValue(true),
       isSignedInProvider.overrideWithValue(authRepository.isSignedIn),
       authRepositoryProvider.overrideWithValue(authRepository),
       reminderListProvider.overrideWith((ref) => Stream.value(const [])),
@@ -162,10 +167,32 @@ void main() {
     });
   });
 
-  group('帳號入口', () {
-    testWidgets('Guest 顯示「登入以同步」圖示', (tester) async {
+  group('帳號入口 feature flag', () {
+    test('正式版預設關閉帳號入口', () {
+      expect(FeatureFlags.accountEntry, isFalse);
+    });
+
+    for (final signedIn in [false, true]) {
+      testWidgets('旗標關閉時不顯示任何帳號入口（isSignedIn: $signedIn）', (tester) async {
+        await tester.pumpWidget(
+          buildSubject(
+            authRepository: FakeAuthRepository(isSignedIn: signedIn),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('登入以同步'), findsNothing);
+        expect(find.byTooltip('帳號'), findsNothing);
+        expect(find.byIcon(Icons.login), findsNothing);
+        expect(find.byIcon(Icons.person_outline), findsNothing);
+      });
+    }
+
+    testWidgets('旗標開啟且為 Guest 時顯示「登入以同步」圖示', (tester) async {
       await tester.pumpWidget(
-        buildSubject(authRepository: FakeAuthRepository()),
+        buildSubject(
+          authRepository: FakeAuthRepository(),
+          accountEntryEnabled: true,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.byTooltip('登入以同步'), findsOneWidget);
@@ -173,9 +200,12 @@ void main() {
       expect(find.byTooltip('帳號'), findsNothing);
     });
 
-    testWidgets('已登入時顯示「帳號」圖示', (tester) async {
+    testWidgets('旗標開啟且已登入時顯示「帳號」圖示', (tester) async {
       await tester.pumpWidget(
-        buildSubject(authRepository: FakeAuthRepository(isSignedIn: true)),
+        buildSubject(
+          authRepository: FakeAuthRepository(isSignedIn: true),
+          accountEntryEnabled: true,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.byTooltip('帳號'), findsOneWidget);
@@ -185,9 +215,7 @@ void main() {
 
     testWidgets('Guest 點擊帳號圖示會前往 /login', (tester) async {
       await tester.pumpWidget(
-        buildSubjectWithRouter(
-          authRepository: FakeAuthRepository(),
-        ),
+        buildSubjectWithRouter(authRepository: FakeAuthRepository()),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('登入以同步'));
@@ -200,7 +228,9 @@ void main() {
         isSignedIn: true,
         currentUser: const AppUser(id: 'u1', email: 'a@b.com'),
       );
-      await tester.pumpWidget(buildSubject(authRepository: repository));
+      await tester.pumpWidget(
+        buildSubject(authRepository: repository, accountEntryEnabled: true),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('帳號'));
       await tester.pumpAndSettle();
@@ -211,7 +241,9 @@ void main() {
 
     testWidgets('在帳號選單點擊登出會呼叫 signOut', (tester) async {
       final repository = FakeAuthRepository(isSignedIn: true);
-      await tester.pumpWidget(buildSubject(authRepository: repository));
+      await tester.pumpWidget(
+        buildSubject(authRepository: repository, accountEntryEnabled: true),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('帳號'));
       await tester.pumpAndSettle();
@@ -222,7 +254,9 @@ void main() {
 
     testWidgets('signOut 失敗時顯示錯誤 SnackBar，不讓整個 sheet 崩潰', (tester) async {
       final repository = ThrowingSignOutAuthRepository(isSignedIn: true);
-      await tester.pumpWidget(buildSubject(authRepository: repository));
+      await tester.pumpWidget(
+        buildSubject(authRepository: repository, accountEntryEnabled: true),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('帳號'));
       await tester.pumpAndSettle();
