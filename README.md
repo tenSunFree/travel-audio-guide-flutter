@@ -409,8 +409,8 @@ retry.
   flaky rate and runtime have been observed
 - Configured merge requirements so CI checks must pass and branches must be up to date before
   merging
-- Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds,
-  and GitHub Releases
+- Built a release flow using `release/x.x.x` branches, release-candidate and release version tags,
+  automated release APK builds, and GitHub Releases — see [Release Process](#release-process)
 - Added a Pull Request template to standardize change summaries, test plans, and related issue
   tracking
 - Set up Android `staging` and `production` product flavors with separate application IDs, enabling
@@ -911,6 +911,37 @@ fvm use <version> --pin    # creates .fvmrc
 Once `.fvmrc` exists and `fvm` is installed, every script under `scripts/` automatically switches
 from `flutter`/`dart` to `fvm flutter`/`fvm dart` (see `scripts/_fvm.sh`). No other configuration is
 needed.
+
+### Release Process
+
+A release goes through a release branch and a release candidate (RC) before it reaches `main`:
+
+1. Make sure `main` has nothing `develop` lacks (`git log origin/develop..origin/main` prints
+   nothing), then cut `release/x.y.z` from `develop`.
+2. Put the version bump (`pubspec.yaml`) and the `CHANGELOG.md` entry in the first commit of the
+   release branch, so the integration matrix runs once on the final content. The heading must be
+   `## vX.Y.Z - YYYY-MM-DD`: `cd.yml` builds the GitHub Release notes by matching the `vX.Y.Z`
+   heading.
+3. Check that the full emulator compatibility matrix (`Integration Test`, triggered by pushes and
+   pull requests to `release/**`) passes on the release branch HEAD. It is not a required check yet,
+   so look at the result before tagging.
+4. Tag the release branch HEAD as `vX.Y.Z-rc.N`. `deploy-rc.yml` builds the production-flavor APK and
+   distributes it through Firebase App Distribution for on-device verification. If an RC needs a
+   fix, merge it into the release branch and tag the next RC; published tags are never moved or
+   deleted.
+5. Check again that `main` has nothing the release branch lacks, open a pull request from
+   `release/x.y.z` to `main`, and merge it with a merge commit (not squash).
+6. Tag the resulting merge commit on `main` as `vX.Y.Z`. `cd.yml` builds the signed production APK
+   and publishes the GitHub Release with the matching CHANGELOG section.
+7. Open a pull request from `main` back into `develop`, so the version bump and the release merge
+   commit return to `develop`.
+
+`versionName` and `versionCode` come from the tag, not from `pubspec.yaml`
+(`scripts/compute_android_version.sh`): `versionCode = major × 1,000,000 + minor × 10,000 +
+patch × 100 + sequence`, where the sequence is the RC number (1–98) for RC tags and 99 for the final
+release. For example `v1.1.1-rc.1` → `1010101` and `v1.1.1` → `1010199`, so a final release always
+sorts above its own RCs and a newer version never gets a smaller code. Keep the `version:` line in
+`pubspec.yaml` in sync with the tag by hand.
 
 ---
 
