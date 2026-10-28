@@ -126,7 +126,10 @@ jobs:
           #
           #   minSdk     API 26
           #   production API 36
-          #   latest     API 37
+          #
+          # API 37 is intentionally absent for now: sdkmanager on the runner
+          # could not find "platforms;android-37". Add a "latest" entry back
+          # once the correct package id has been confirmed.
           #
           # Layout compatibility:
           #
@@ -159,12 +162,6 @@ jobs:
               {
                 "name": "production",
                 "api": 36,
-                "profile": "pixel_6",
-                "rotations": "0"
-              },
-              {
-                "name": "latest",
-                "api": 37,
                 "profile": "pixel_6",
                 "rotations": "0"
               },

@@ -12,7 +12,7 @@
 
 ### Internal
 - Added hermetic app-level integration tests (browse, offline, audio guide, optional login) that run the real app with only external boundaries faked
-- Added an `Integration Test` workflow that runs them on Android emulators: a smoke run for pull requests to `main`/`develop`, and a compatibility matrix (API 26/36/37, small phone, tablet in both orientations) for `release/**`, nightly, and manual runs
+- Added an `Integration Test` workflow that runs them on Android emulators: a smoke run for pull requests to `main`/`develop`, and a compatibility matrix (API 26/36, small phone, tablet in both orientations) for `release/**`, nightly, and manual runs
 - Documented the integration tests and the CI compatibility matrix in the README
 
 ---
