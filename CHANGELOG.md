@@ -2,6 +2,21 @@
 
 ---
 
+## v1.1.1 - 2026-10-25
+
+### Changed
+- Hid the login entry on the "My Journey" page behind a compile-time feature flag (`FeatureFlags.accountEntry`) until login is ready to ship; the auth implementation and routes remain in place
+
+### Fixed
+- Made the welcome page scrollable so its content no longer overflows on small screens
+
+### Internal
+- Added hermetic app-level integration tests (browse, offline, audio guide, optional login) that run the real app with only external boundaries faked
+- Added an `Integration Test` workflow that runs them on Android emulators: a smoke run for pull requests to `main`/`develop`, and a compatibility matrix (API 26/36, small phone, tablet in both orientations) for `release/**`, nightly, and manual runs
+- Documented the integration tests and the CI compatibility matrix in the README
+
+---
+
 ## v1.1.0 - 2026-09-13
 
 ### Added
