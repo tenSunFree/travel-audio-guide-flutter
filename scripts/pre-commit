@@ -2,7 +2,7 @@
 # scripts/pre-commit
 #
 # Checks before every commit:
-#   1. dart format check — lib/test/pigeons (same scope as scripts/check.sh)
+#   1. dart format check — lib/test/integration_test/pigeons (same scope as scripts/check.sh)
 #      does NOT auto-fix; tells you exactly what to run
 #   2. Secret scan on staged changes
 #        - gitleaks installed  -> gitleaks protect --staged --verbose
@@ -19,12 +19,12 @@ echo ""
 echo "pre-commit: running checks..."
 
 # ============================================================
-# 1. dart format check (same scope as scripts/check.sh: lib test pigeons)
+# 1. dart format check (same scope as scripts/check.sh: lib test integration_test pigeons)
 # ============================================================
 echo ""
 echo "==> dart format check"
 
-if $DART_CMD format --output=none --set-exit-if-changed lib test pigeons; then
+if $DART_CMD format --output=none --set-exit-if-changed lib test integration_test pigeons; then
     echo "Passed: dart format check"
 else
     echo ""

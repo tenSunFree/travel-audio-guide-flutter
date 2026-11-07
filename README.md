@@ -4,6 +4,7 @@
 [![CD](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/cd.yml)
 [![Staging Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-staging.yml)
 [![RC Distribution](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/deploy-rc.yml)
+[![Integration Test](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/integration-test.yml/badge.svg)](https://github.com/tenSunFree/travel-audio-guide-flutter/actions/workflows/integration-test.yml)
 [![codecov](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter/graph/badge.svg)](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44.9-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12.0-0175C2?logo=dart&logoColor=white)](https://dart.dev)
@@ -12,7 +13,7 @@
 [![Data](https://img.shields.io/badge/Data-Offline--First%20%2B%20Drift-009688)](#offline-first-experience)
 [![Auth](https://img.shields.io/badge/Auth-Supabase-3FCF8E?logo=supabase&logoColor=white)](#authentication--profile)
 [![Interop](https://img.shields.io/badge/Interop-Pigeon-673AB7)](https://pub.dev/packages/pigeon)
-[![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget-FF9800)](#testing)
+[![Testing](https://img.shields.io/badge/Testing-Unit%20%2B%20Widget%20%2B%20Integration-FF9800)](#testing)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Sentry-362D59?logo=sentry&logoColor=white)](#observability-and-analytics)
 [![Analytics](https://img.shields.io/badge/Analytics-Firebase-FFCA28?logo=firebase&logoColor=black)](#observability-and-analytics)
 [![Distribution](https://img.shields.io/badge/Distribution-Firebase%20App%20Distribution-FFCA28?logo=firebase&logoColor=black)](#git-workflow--cicd)
@@ -145,8 +146,12 @@ below for how the two sides fit together.
 - Guest-first: attractions, activities, audio guides, offline playback, nearby recommendations, and
   the local journey/reminder list all work without signing in — the app's default route is Home, not
   Login
-- Login is an optional feature, reachable from the account icon on the "My Journey" tab (or
-  automatically when a route explicitly requires an account); it is never the app's forced entrance
+- Login is an optional feature and never the app's forced entrance (a route listed in
+  `protectedPaths` would still redirect to `/login`). The account entry on the "My Journey" tab is
+  currently hidden behind `FeatureFlags.accountEntry` (`lib/core/feature_flags/feature_flags.dart`,
+  default `false`) while login is not shipped. Set the flag to `true` when the login feature is
+  ready for rollout; the auth integration tests enable it explicitly, so the login/logout journey
+  stays covered
 - Email/password authentication via Supabase Auth, with sign-up and sign-in flows
 - Session persistence across app restarts through the Supabase Flutter SDK; no manual token refresh
   logic required
@@ -204,6 +209,23 @@ below for how the two sides fit together.
   report via `genhtml` or `lcov-viewer` for file-by-file and line-by-line inspection
 - Test coverage is tracked via Codecov and uploaded automatically from CI (
   `flutter test --coverage` → `coverage/lcov.info`)
+- App-level integration tests under `integration_test/` run the real app on a device or emulator
+  and cover four critical user journeys: guest-first browsing (splash → welcome → home → attraction
+  list → detail), offline-first behavior (cached Drift data stays visible when the API fails),
+  audio guide download → real file write → playback, and optional login → logout back to guest
+- Integration tests are hermetic: the real `GoRouter`, Riverpod graph, Drift database, controllers,
+  and UI run unchanged, and only the external boundaries are faked — the HTTP transport
+  (`HttpClientAdapter`), Supabase Auth, audio playback, notifications, and analytics — so they need
+  no network, no secrets beyond the staging Firebase file, and never touch production data
+- The fake API is strict: any request it does not recognize returns 404 and fails the test, so a new
+  or renamed endpoint cannot be silently swallowed
+- `pumpTestApp` defaults to `accountEntryEnabled: false` so integration tests match the shipped
+  state (login entry hidden); only `auth_flow_test.dart` opts in
+- Integration tests are intentionally excluded from `flutter test --coverage` and Codecov; their
+  signal is "critical journeys pass", not a coverage percentage
+- In CI the integration suite runs on an Android emulator compatibility matrix sampled along
+  independent axes (OS level, screen class, orientation) instead of a full API × device × rotation
+  product; physical-device checks (Pixel and Samsung) remain a manual pre-release step
 
 ### Code Quality
 
@@ -344,8 +366,19 @@ retry.
 - Optional Flutter version pinning via [FVM](https://fvm.app/): a shared helper (`scripts/_fvm.sh`)
   is sourced by every script under `scripts/`, so they all automatically switch from `flutter`/
   `dart` to `fvm flutter`/`fvm dart` once `.fvmrc` is present
+- Integration test runner (`scripts/integration_test.sh`) runs `integration_test/` on a connected
+  device or emulator with the `staging` flavor; `DEVICE_ID`, `FLAVOR`, and `TARGET` (a single test
+  file) are configurable through environment variables. It is deliberately **not** part of
+  `scripts/check.sh` or the `pre-push` hook, so the everyday feedback loop stays fast
+- CI emulator wrapper (`scripts/ci/run_emulator_tests.sh`) runs inside the emulator job: it waits for
+  a full Android boot, disables auto-rotate, runs `scripts/integration_test.sh` once per requested
+  rotation (`ROTATIONS`), and on failure saves `logcat`, a screenshot, and `dumpsys`/`getprop`
+  snapshots to `build/ci-artifacts/<label>/`. Keeping this logic in a script (instead of the
+  workflow's `script:` input, which is meant to be a single command) also makes it reproducible
+  locally
 - `Makefile` wraps the most common scripts (`make setup`, `make format`, `make check`,
-  `make coverage`, `make secret-scan`, `make doctor`) for a shorter command surface
+  `make coverage`, `make integration-test`, `make secret-scan`, `make doctor`) for a shorter command
+  surface
 
 ### Git Workflow & CI/CD
 
@@ -365,10 +398,19 @@ retry.
   routine version updates target `develop`)
 - Configured GitHub Actions CI for Pull Requests, including Dart format checks, static analysis,
   unit tests, and debug APK builds for both `staging` and `production` flavors
+- Added a separate `Integration Test` workflow (`integration-test.yml`) that runs the integration
+  tests on Android emulators in two tiers: a single **smoke** run (API 36, `pixel_6`) for pull
+  requests to `main`/`develop`, and a sampled **compatibility matrix** (minSdk, production,
+  small phone, tablet in both orientations) for pull requests to `release/**`, `release/**`
+  pushes, the nightly schedule, and manual `full` dispatch — see
+  [CI Compatibility Matrix](#ci-compatibility-matrix). Fork and Dependabot PRs cannot read the
+  staging Firebase secret, so the job is skipped for them instead of failing. It is report-only for
+  now: only the aggregate `Integration result` check should become required, and only after the
+  flaky rate and runtime have been observed
 - Configured merge requirements so CI checks must pass and branches must be up to date before
   merging
-- Built a release flow using `release/x.x.x` branches, version tags, automated release APK builds,
-  and GitHub Releases
+- Built a release flow using `release/x.x.x` branches, release-candidate and release version tags,
+  automated release APK builds, and GitHub Releases — see [Release Process](#release-process)
 - Added a Pull Request template to standardize change summaries, test plans, and related issue
   tracking
 - Set up Android `staging` and `production` product flavors with separate application IDs, enabling
@@ -517,6 +559,10 @@ retry.
 - flutter_test  
   Official Flutter testing framework (Provides unit and widget testing utilities for validating
   business logic, UI behavior, and regression scenarios)
+- integration_test  
+  Official Flutter integration testing package (Runs the real app on a device or emulator to verify
+  complete user journeys across routing, dependency injection, Drift, the file system, and the UI,
+  with only external services faked)
 - mocktail  
   Mock library for Dart unit testing (Stubs repository and data source dependencies to isolate
   domain and data layer logic; verifies interaction behavior with `verify` and `verifyNever` without
@@ -598,6 +644,7 @@ This checks your local environment, installs Flutter dependencies, creates `env/
 bash scripts/format.sh       # auto-format Dart files (modifies files)
 bash scripts/check.sh        # local CI checks with coverage validation — never modifies files
 bash scripts/coverage.sh     # generate coverage + local HTML report when tooling is available
+bash scripts/integration_test.sh  # run integration tests on a connected device/emulator (slow)
 bash scripts/secret-scan.sh  # full repo + git-history secret scan
 bash scripts/doctor.sh       # check local environment
 python scripts/quality/sort_pubspec_dependencies.py            # auto-fix pubspec.yaml dependency ordering
@@ -611,6 +658,7 @@ make setup
 make format
 make check
 make coverage
+make integration-test
 make secret-scan
 make doctor
 ```
@@ -641,6 +689,86 @@ flutter analyze
 - After changing `analysis_options.yaml` or `packages/app_lints`, restart the Dart Analysis Server
   if IDE diagnostics appear stale; command-line analysis can be rerun directly with
   `flutter analyze`
+
+### Integration Tests
+
+The `integration_test/` suite runs the real app on a connected Android device or emulator. It is
+kept separate from `make check` because it builds and installs an APK, which is slow.
+
+```bash
+# 1. Start an emulator or connect a device, then find its id
+flutter devices
+
+# 2. Run every integration test
+DEVICE_ID=<device-id> make integration-test
+
+# Run a single journey
+TARGET=integration_test/browse_flow_test.dart DEVICE_ID=<device-id> make integration-test
+```
+
+Prerequisites and behavior:
+
+- `android/app/src/staging/google-services.json` must exist, because the staging flavor cannot be
+  built without it (the script checks and fails early with a clear message). No `env/*.json` runtime
+  secrets are required: the tests never initialize Supabase, Firebase, or Sentry
+- Tests pump the real `TravelAudioGuideApp` through `integration_test/helpers/test_app.dart` instead
+  of `bootstrap()`, replacing only external boundaries with fakes from
+  `integration_test/helpers/fakes.dart`
+- `pumpUntilFound` / `pumpUntilGone` (`helpers/pump_until.dart`) are used instead of
+  `pumpAndSettle()`, because the splash animation and skeleton loaders animate indefinitely
+- The audio journey writes a real file to the app documents directory and removes only that one
+  file before and after the test, so other downloads on the device are never touched
+- Large `[exception] sync failed` logs in the offline tests are expected: the fake API is
+  deliberately offline to verify that cached data stays visible
+
+CI runs the same suite in `.github/workflows/integration-test.yml` (see
+[Git Workflow & CI/CD](#git-workflow--cicd)).
+
+#### CI Compatibility Matrix
+
+A `plan` job picks the suite from the trigger, so setup steps (Java, Flutter, KVM, AVD cache) are
+maintained once:
+
+| Trigger                                                                   | Suite                           |
+|---------------------------------------------------------------------------|---------------------------------|
+| Pull request → `main` / `develop`                                         | Smoke                           |
+| Pull request → `release/**`, push → `release/**`, nightly (default branch) | Full compatibility matrix       |
+| Manual (`workflow_dispatch`)                                              | `smoke` or `full` (selectable)  |
+
+The full matrix samples each axis independently — it is deliberately **not** API × device ×
+orientation (3 × 3 × 2 = 18 runs):
+
+| Config        | API | Profile        | Rotations           | Purpose                              |
+|---------------|-----|----------------|---------------------|--------------------------------------|
+| `min-api`     | 26  | `pixel_6`      | natural             | `minSdk` (Health Connect needs 26)   |
+| `production`  | 36  | `pixel_6`      | natural             | Production baseline (Play target)    |
+| `small-phone` | 36  | `Nexus 5`      | natural             | Small-screen layout / overflow       |
+| `tablet`      | 36  | `pixel_tablet` | natural + 90°       | Large-screen layout in both orientations |
+
+That is 4 emulator configurations and 5 suite runs. Notes:
+
+- Keep the `min-api` entry in sync with `minSdk` in `android/app/build.gradle.kts`
+- API 37 (Android 17) is not in the matrix yet: the emulator action's `sdkmanager` could not find
+  the `platforms;android-37` package on the runner. Add a `latest` entry back once the correct
+  package id has been confirmed with `sdkmanager --list`
+- A tablet's natural orientation is landscape and a phone's is portrait, so `0 1` covers both
+  orientations on any profile
+- The emulator API level is not the app's `targetSdk`; the latter comes from
+  `flutter.targetSdkVersion`
+- Orientation is runtime state, so it is not part of the AVD cache key; AVD snapshots are cached per
+  API + profile
+- On failure, each job uploads `build/ci-artifacts/<config>-api<N>/` (logcat, screenshot, window and
+  activity dumps, device properties) as a workflow artifact, retained for 7 days
+- The workflow is report-only for now. When it becomes a branch-protection requirement, require only
+  the aggregate **`Integration result`** check (not the individual matrix jobs) and remove
+  `paths-ignore` from the workflow, otherwise a skipped workflow leaves the required check pending
+
+To trigger the full matrix manually: **Actions → Integration Test → Run workflow → suite: `full`**.
+To reproduce a CI run against a local emulator:
+
+```bash
+DEVICE_ID=emulator-5554 ROTATIONS="0 1" LABEL=local bash scripts/ci/run_emulator_tests.sh
+```
 
 ### Local Coverage Report
 
@@ -717,7 +845,7 @@ Installed hooks:
 
 Runs fast, staged-only checks before every commit:
 
-- Dart format validation for `lib`, `test`, and `pigeons`
+- Dart format validation for `lib`, `test`, `integration_test`, and `pigeons`
 - Secret scan on staged changes:
   - Uses `gitleaks` when it is installed
   - Falls back to a lightweight built-in regex-based scanner with a warning when `gitleaks` is not
@@ -751,7 +879,8 @@ The local check script validates:
 - Staging flavor debug APK build
 
 This mirrors the main GitHub Actions CI checks locally, so common issues can be caught before
-pushing.
+pushing. Integration tests are not included here because they need a device or emulator and are
+slow; run them with `make integration-test` (see [Integration Tests](#integration-tests)).
 
 Bypass any hook (not recommended): `git commit --no-verify` / `git push --no-verify`.
 
@@ -785,6 +914,40 @@ Once `.fvmrc` exists and `fvm` is installed, every script under `scripts/` autom
 from `flutter`/`dart` to `fvm flutter`/`fvm dart` (see `scripts/_fvm.sh`). No other configuration is
 needed.
 
+### Release Process
+
+A release goes through a release branch and a release candidate (RC) before it reaches `main`:
+
+1. Run `git fetch origin` first (the checks below read local remote-tracking refs), then make sure
+   `main` has nothing `develop` lacks (`git log origin/develop..origin/main` prints nothing). Cut
+   `release/x.y.z` from the fetched `origin/develop`.
+2. Release branches are protected, so put the version bump (`pubspec.yaml`) and the `CHANGELOG.md`
+   entry on a `chore/prepare-release-x.y.z` branch and merge it into `release/x.y.z` through a pull
+   request. The changelog heading must be `## vX.Y.Z - YYYY-MM-DD`: `cd.yml` builds the GitHub
+   Release notes by matching the `vX.Y.Z` heading.
+3. The full emulator compatibility matrix (`Integration Test`) runs on every push and pull request
+   to `release/**`. It is not a required check yet, so look at the result yourself, and wait for the
+   run triggered by the final merge before tagging.
+4. Tag the release branch HEAD as `vX.Y.Z-rc.N`. `deploy-rc.yml` builds the production-flavor APK and
+   distributes it through Firebase App Distribution for on-device verification. If an RC needs a
+   fix, merge it into the release branch and tag the next RC; published tags are never moved or
+   deleted.
+5. Fetch again and check that `main` has nothing the release branch lacks
+   (`git log origin/release/x.y.z..origin/main` prints nothing), open a pull request from
+   `release/x.y.z` to `main`, and merge it with a merge commit (not squash).
+6. Tag the resulting merge commit on `main` as `vX.Y.Z`. `cd.yml` builds the signed production APK
+   and publishes the GitHub Release with the matching CHANGELOG section.
+7. Open a pull request from `main` back into `develop`, so the version bump and the release merge
+   commit return to `develop`.
+
+`versionName` and `versionCode` come from the tag, not from `pubspec.yaml`
+(`scripts/compute_android_version.sh`): `versionCode = major × 1,000,000 + minor × 10,000 +
+patch × 100 + sequence`, where the sequence is the RC number (1–98) for RC tags and 99 for the final
+release. For example `v1.1.1-rc.1` → `1010101` and `v1.1.1` → `1010199`, so a final release always
+sorts above its own RCs and a newer version never gets a smaller code. Keep the `x.y.z` part of the
+`version:` line in `pubspec.yaml` in sync with the tag by hand; the `+build` number there is not used
+by CI builds, which take the build number from the tag.
+
 ---
 
 ## Credits
@@ -812,23 +975,38 @@ If you plan to open-source it, please choose a license and confirm third-party a
 
 ## Project Structure
 
-> This is a high-level overview, not an exhaustive file listing — each feature under `lib/features/`
-> follows the same `data / di / domain / presentation` layering shown for `activity` below. Run
-`tree -L 4 --gitignore lib test` locally for the full, up-to-date tree.
+> This is an architectural overview, not an exhaustive file listing. Most features follow the same
+> `data / di / domain / presentation` layering shown for `activity`, and shared cross-feature
+> capabilities live in `lib/core/`. Generated files (`*.g.dart`, `*.freezed.dart`) and git-ignored
+> environment files are not expanded here. Run `tree -L 4 --gitignore lib test` locally for the full,
+> up-to-date tree.
 
 ```text
 travel-audio-guide-flutter
+├─ .github
+│  ├─ workflows
+│  │  ├─ ci.yml                         # Format, analyze, test with coverage, debug APK builds
+│  │  ├─ integration-test.yml           # Android emulator smoke / compatibility matrix
+│  │  ├─ deploy-staging.yml             # Staging build → Firebase App Distribution (develop)
+│  │  ├─ deploy-rc.yml                  # RC build → Firebase App Distribution (v*.*.*-rc.*)
+│  │  ├─ cd.yml                         # Production APK + GitHub Release (v*.*.*)
+│  │  └─ dependabot-auto-merge.yml      # Dependabot automation
+│  ├─ dependabot.yml
+│  └─ pull_request_template.md
 ├─ android
 │  └─ app
+│     ├─ build.gradle.kts               # Flavors (staging / production), signing, minSdk
 │     └─ src
+│        ├─ debug / profile             # Build-type manifests
 │        └─ main
+│           ├─ AndroidManifest.xml
+│           ├─ res
 │           └─ kotlin/com/tensunfree/flutter_travel_audio_guide/flutter_travel_audio_guide
-│              ├─ HealthConnectApi.g.kt
+│              ├─ HealthConnectApi.g.kt        # Pigeon-generated native API
 │              ├─ HealthConnectManager.kt
 │              ├─ MainActivity.kt
 │              └─ StepSensorManager.kt
-├─ ios
-├─ linux / macos / web
+├─ ios                                  # Standard Flutter iOS runner
 ├─ lib
 │  ├─ app.dart
 │  ├─ bootstrap.dart
@@ -836,7 +1014,7 @@ travel-audio-guide-flutter
 │  ├─ main_staging.dart
 │  ├─ main_production.dart
 │  ├─ config
-│  │  └─ firebase
+│  │  └─ firebase                   # Per-flavor FlutterFire options (git-ignored; see below)
 │  │     ├─ firebase_options_staging.dart
 │  │     └─ firebase_options_production.dart
 │  ├─ core                          # Cross-feature shared capabilities
@@ -845,6 +1023,7 @@ travel-audio-guide-flutter
 │  │  ├─ database                   # Drift AppDatabase, DAOs, tables
 │  │  ├─ debug                      # Debug-only app options
 │  │  ├─ error                      # Shared exception types
+│  │  ├─ feature_flags              # Compile-time switches (FeatureFlags.accountEntry, ...)
 │  │  ├─ image                      # Cached network image manager
 │  │  ├─ monitoring                 # MonitoringService (Sentry wrapper)
 │  │  ├─ nearby                     # Location controller, nearby models/utils
@@ -873,7 +1052,7 @@ travel-audio-guide-flutter
 │     │     ├─ pages
 │     │     └─ widgets
 │     ├─ attraction                 # Same layering as activity
-│     ├─ audio_guide                # Same layering, plus domain/services for playback
+│     ├─ audio_guide                # Same layering, plus data/services and domain/services for playback
 │     ├─ auth                       # Supabase email/password auth, session state
 │     │  ├─ data
 │     │  │  ├─ datasources          # SupabaseAuthDataSource
@@ -898,8 +1077,8 @@ travel-audio-guide-flutter
 │     │  │  └─ repositories
 │     │  └─ presentation
 │     │     └─ controllers          # ProfileController (AsyncNotifier)
-│     ├─ reminder                   # Journey reminders, local notifications; MyJourney also hosts
-│     │                             # the optional account entry point into LoginPage
+│     ├─ reminder                   # Journey reminders, local notifications; MyJourney hosts the
+│     │                             # account entry point into LoginPage (hidden by FeatureFlags.accountEntry)
 │     ├─ splash                     # Animated splash screen widgets
 │     └─ step_tracking              # Android step sensor integration (Pigeon-based)
 ├─ packages
@@ -913,8 +1092,10 @@ travel-audio-guide-flutter
 │           ├─ architecture         # Architecture dependency diagnostics
 │           └─ conventions          # Naming and logging diagnostics
 ├─ pigeons
-│  └─ health_connect_api.dart
+│  └─ health_connect_api.dart       # Source definition for Pigeon code generation
 ├─ scripts
+│  ├─ ci
+│  │  └─ run_emulator_tests.sh          # CI-only: boot wait, rotation loop, failure diagnostics
 │  ├─ hooks
 │  │  ├─ commit-msg
 │  │  ├─ pre-commit
@@ -926,29 +1107,97 @@ travel-audio-guide-flutter
 │  ├─ build_release.sh
 │  ├─ check.sh
 │  ├─ codegen.sh
+│  ├─ compute_android_version.sh        # Tag → Android versionName / versionCode
+│  ├─ coverage.sh                       # LCOV + local HTML coverage report
 │  ├─ create_runtime_env.sh             # CI-only: builds env/ci.json from GitHub vars/secrets
 │  ├─ doctor.sh
 │  ├─ format.sh
+│  ├─ integration_test.sh               # Runs integration_test/ on a device/emulator (not in check.sh)
 │  ├─ release.sh
 │  ├─ run_dev.sh
 │  ├─ secret-scan.sh
 │  └─ setup-hooks.sh
 ├─ test
-│  ├─ core                          # Mirrors lib/core/ (database, network, nearby, sync, widgets...)
+│  ├─ app
+│  │  └─ app_smoke_test.dart
+│  ├─ core                          # Mirrors lib/core/ (analytics, constants, database, nearby, network,
+│  │                                # preferences, router, sync, widgets)
 │  ├─ features                      # Mirrors lib/features/, one subtree per feature
 │  │  ├─ activity
 │  │  ├─ attraction
 │  │  ├─ audio_guide
+│  │  ├─ auth
 │  │  ├─ home
 │  │  ├─ onboarding
+│  │  ├─ profile
 │  │  ├─ reminder
+│  │  ├─ splash
 │  │  └─ step_tracking
-│  ├─ app
-│  │  └─ app_smoke_test.dart
-│  └─ test_helpers                  # Shared fixtures, fakes, in-memory DB setup
+│  ├─ test_helpers                  # Shared fixtures, fakes, in-memory DB setup
+│  └─ flutter_test_config.dart
+├─ integration_test                 # App-level tests run on a device/emulator (hermetic)
+│  ├─ helpers
+│  │  ├─ fakes.dart                 # Fake HTTP adapter, auth, playback, notifications, analytics
+│  │  ├─ fixtures.dart              # Test-only attraction / audio guide fixture data
+│  │  ├─ pump_until.dart            # pumpUntilFound / pumpUntilGone (replaces pumpAndSettle)
+│  │  └─ test_app.dart              # pumpTestApp(): real app + hermetic provider overrides
+│  ├─ browse_flow_test.dart         # Splash → welcome → home → attraction list → detail
+│  ├─ offline_flow_test.dart        # Cached Drift data survives API failure
+│  ├─ audio_flow_test.dart          # Download → file write → play → pause
+│  └─ auth_flow_test.dart           # Optional login → logout back to guest (flag enabled in-test)
+├─ env
+│  └─ example.json                  # Runtime configuration template
+├─ .fvmrc                           # Optional Flutter version pin
+├─ .gitattributes                   # Line-ending policy
+├─ analysis_options.yaml            # very_good_analysis + app_lints
+├─ CHANGELOG.md
+├─ codecov.yml
+├─ firebase.json
 ├─ Makefile
 ├─ pubspec.lock
 ├─ pubspec.yaml
-├─ analysis_options.yaml
 └─ README.md
 ```
+
+### Generated and Environment-Specific Files
+
+These files are needed to build or run the app but are intentionally **not committed** (see
+`.gitignore`). They are created locally or restored from GitHub Secrets / Variables in CI:
+
+```text
+lib/config/firebase/firebase_options_staging.dart
+lib/config/firebase/firebase_options_production.dart
+android/app/src/staging/google-services.json
+android/app/src/production/google-services.json
+env/dev.json  env/release.json  env/ci.json
+android/key.properties
+android/app/*.jks  android/app/*.keystore
+```
+
+Generated sources are committed where the project needs them, but are not hand-written application
+logic: `*.g.dart`, `*.freezed.dart`, `HealthConnectApi.g.kt`, and
+`lib/features/step_tracking/data/health_connect_api.g.dart`.
+
+### Architecture at a Glance
+
+```text
+Presentation ───────▶ Domain ◀─────── Data
+pages, controllers,   entities,       models, data sources,
+widgets               repository      repository implementations,
+                      interfaces,     platform services
+                      use cases
+```
+
+Dependencies point inward: presentation and data both depend on domain abstractions, never the other
+way round (enforced by the `avoid_domain_data_import` and `avoid_presentation_data_import` rules in
+`packages/app_lints`). Dependency injection (`di/` Riverpod providers) wires the concrete data
+implementations to those abstractions.
+
+Data comes from these sources:
+
+- Remote: Taipei Travel Open API, Supabase Auth, and the Go backend (`/api/v1/me`)
+- Local: Drift / SQLite, SharedPreferences, downloaded audio files, and Android native services
+  (step sensor, Health Connect)
+
+Feature modules own their business logic, while `lib/core/` holds infrastructure shared across
+features.

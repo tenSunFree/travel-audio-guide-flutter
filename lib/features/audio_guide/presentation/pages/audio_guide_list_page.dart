@@ -116,16 +116,14 @@ class _AudioGuideListPageState extends ConsumerState<AudioGuideListPage> {
       ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
-    final latestState = ref.read(audioGuideListControllerProvider);
-    final latestGuide = latestState.items.firstWhere(
-      (item) => item.id == guide.id,
-      orElse: () => guide,
-    );
-    if (latestGuide.localFilePath != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('下載完成')));
-    }
+    // downloadGuide() only returns null after the file is written and
+    // markAsDownloaded() has completed, so null already means success.
+    // Do not re-read controller state here: it is updated by the Drift watch
+    // stream, which may not have emitted yet, and the snackbar would be
+    // skipped intermittently.
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('下載完成')));
   }
 
   @override

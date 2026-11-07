@@ -1,25 +1,43 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_travel_audio_guide/core/analytics/analytics_service.dart';
 import 'package:flutter_travel_audio_guide/core/database/app_database.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
+import 'package:flutter_travel_audio_guide/core/error/exceptions.dart';
 import 'package:flutter_travel_audio_guide/core/sync/app_sync_service.dart';
 import 'package:flutter_travel_audio_guide/core/sync/sync_providers.dart';
 import 'package:flutter_travel_audio_guide/core/widgets/list_skeleton.dart';
+import 'package:flutter_travel_audio_guide/features/audio_guide/di/audio_guide_providers.dart';
+import 'package:flutter_travel_audio_guide/features/audio_guide/domain/entities/audio_guide_page.dart';
+import 'package:flutter_travel_audio_guide/features/audio_guide/domain/usecases/download_audio_guide_usecase.dart';
 import 'package:flutter_travel_audio_guide/features/audio_guide/presentation/pages/audio_guide_list_page.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../../test_helpers/audio_guide_fakes.dart';
 
 /// Mock (mocktail) of AppSyncService
 /// Used to control the behavior of syncAllIfNeeded() / forceSync()
 class MockAppSyncService extends Mock implements AppSyncService {}
 
+/// Mock (mocktail) of FirebaseAnalytics — downloadGuide() logs start /
+/// success / failure events, which would otherwise hit `[core/no-app]`.
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
 /// [syncService] The default is to complete immediately (without blocking). If mockService is passed in, the behavior can be controlled.
-Widget buildTestApp({required AppDatabase db, AppSyncService? syncService}) {
+Widget buildTestApp({
+  required AppDatabase db,
+  AppSyncService? syncService,
+  List<Override> extraOverrides = const [],
+}) {
   final fakeSyncService = syncService ?? _buildInstantSyncService(db);
   return ProviderScope(
     overrides: [
+      ...extraOverrides,
       // Use in-memory DB (independent for each test)
       appDatabaseProvider.overrideWith((ref) {
         return db;
@@ -183,6 +201,75 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('動態新增導覽'), findsOneWidget);
       expect(find.text('暫無語音導覽資料'), findsNothing);
+      await disposeWidgetTree(tester);
+    });
+  });
+  // Download: the result snackbar must depend on downloadGuide()'s return
+  // value, not on whether the Drift stream has already re-emitted.
+  group('下載', () {
+    setUp(() {
+      final analytics = MockFirebaseAnalytics();
+      when(
+        () => analytics.logEvent(
+          name: any(named: 'name'),
+          parameters: any(named: 'parameters'),
+        ),
+      ).thenAnswer((_) async {});
+      AnalyticsService.debugSetInstance(analytics);
+    });
+    tearDown(AnalyticsService.debugResetInstance);
+
+    Override downloadWith(DownloadAudioGuideHandler onDownload) {
+      final repo = FakeAudioGuideRepository(
+        onGet: ({required lang, required page}) async => AudioGuidePage(
+          total: 0,
+          page: page,
+          items: const [],
+          hasMore: false,
+        ),
+        onDownload: onDownload,
+      );
+      return downloadAudioGuideUseCaseProvider.overrideWithValue(
+        DownloadAudioGuideUseCase(repo),
+      );
+    }
+
+    testWidgets('下載成功時一定顯示「下載完成」，且按鈕變為「播放」', (tester) async {
+      await insertGuide(db, title: '待下載導覽');
+      await tester.pumpWidget(
+        buildTestApp(
+          db: db,
+          extraOverrides: [downloadWith((_) async => '/tmp/audio/1.mp3')],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('下載'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('下載完成'), findsOneWidget);
+      expect(find.text('播放'), findsOneWidget);
+      await disposeWidgetTree(tester);
+    });
+
+    testWidgets('下載失敗時顯示錯誤訊息，不顯示「下載完成」', (tester) async {
+      await insertGuide(db, title: '待下載導覽');
+      await tester.pumpWidget(
+        buildTestApp(
+          db: db,
+          extraOverrides: [
+            downloadWith((_) async => throw const DownloadException('測試下載失敗')),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('下載'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('測試下載失敗'), findsOneWidget);
+      expect(find.text('下載完成'), findsNothing);
+      expect(find.text('下載'), findsOneWidget);
       await disposeWidgetTree(tester);
     });
   });
