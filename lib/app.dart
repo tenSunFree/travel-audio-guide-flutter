@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_travel_audio_guide/core/platform/platform_support.dart';
 import 'package:flutter_travel_audio_guide/core/router/app_router.dart';
 import 'package:flutter_travel_audio_guide/core/sync/sync_providers.dart';
 import 'package:flutter_travel_audio_guide/core/theme/app_theme.dart';
@@ -19,6 +20,9 @@ class _TravelAudioGuideAppState extends ConsumerState<TravelAudioGuideApp> {
     super.initState();
     Future.microtask(() async {
       ref.read(appSyncServiceProvider).syncAllIfNeeded();
+      // Web: no native notifications, so skip initialization, the permission
+      // prompt and rescheduling entirely.
+      if (!PlatformSupport.supportsLocalNotifications) return;
       final notificationService = ref.read(notificationServiceProvider);
       await notificationService.initialize();
       await notificationService.requestPermission();

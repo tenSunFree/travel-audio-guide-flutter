@@ -1,38 +1,36 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_travel_audio_guide/core/error/exceptions.dart';
+import 'package:flutter_travel_audio_guide/features/audio_guide/data/datasources/file_store/audio_file_store.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+/// Local storage for downloaded audio guides.
+///
+/// All `dart:io` access lives behind [AudioFileStore] (conditional import),
+/// so this class compiles and runs on Flutter Web, where it behaves as an
+/// always-empty store.
 class AudioGuideLocalDataSource {
   const AudioGuideLocalDataSource();
-
-  Future<Directory> _audioFolder() async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final folder = Directory(p.join(directory.path, 'audio_guides'));
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
-      return folder;
-    } catch (e) {
-      throw LocalStorageException('建立本地資料夾失敗：$e');
-    }
-  }
 
   Future<String> getAudioFilePath({
     required int id,
     required String title,
   }) async {
-    final folder = await _audioFolder();
+    final String folder;
+    try {
+      folder = await createAudioFileStore().ensureAudioFolder();
+    } on LocalStorageException {
+      rethrow;
+    } catch (e) {
+      throw LocalStorageException('建立本地資料夾失敗：$e');
+    }
     final filename = _buildFileName(id: id, title: title);
-    return p.join(folder.path, filename);
+    return p.join(folder, filename);
   }
 
   Future<bool> existsPath(String path) async {
     try {
-      return File(path).exists();
+      return await createAudioFileStore().exists(path);
     } catch (e) {
       throw LocalStorageException('檢查本地檔案失敗：$e');
     }
@@ -43,8 +41,9 @@ class AudioGuideLocalDataSource {
     required String path,
   }) async {
     try {
-      final file = File(path);
-      await file.writeAsBytes(bytes, flush: true);
+      await createAudioFileStore().writeBytes(path: path, bytes: bytes);
+    } on LocalStorageException {
+      rethrow;
     } catch (e) {
       throw LocalStorageException('儲存本地檔案失敗：$e');
     }

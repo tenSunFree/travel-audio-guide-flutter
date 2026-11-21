@@ -1,0 +1,13 @@
+name = "taipei-api-proxy"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+# Production: public Firebase Hosting origins only.
+[vars]
+ALLOW_LOCALHOST = "false"
+
+# Local-only: `npx wrangler dev --env dev`; do not deploy this dev environment.
+[env.dev]
+name = "taipei-api-proxy-dev"
+[env.dev.vars]
+ALLOW_LOCALHOST = "true"

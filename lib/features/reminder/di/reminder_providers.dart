@@ -1,7 +1,9 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_travel_audio_guide/core/database/database_provider.dart';
+import 'package:flutter_travel_audio_guide/core/platform/platform_support.dart';
 import 'package:flutter_travel_audio_guide/features/reminder/data/repositories/reminder_repository_impl.dart';
+import 'package:flutter_travel_audio_guide/features/reminder/data/services/no_op_notification_service.dart';
 import 'package:flutter_travel_audio_guide/features/reminder/data/services/notification_service_impl.dart';
 import 'package:flutter_travel_audio_guide/features/reminder/domain/entities/reminder.dart';
 import 'package:flutter_travel_audio_guide/features/reminder/domain/repositories/reminder_repository.dart';
@@ -16,6 +18,12 @@ final flutterLocalNotificationsPluginProvider =
     });
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
+  // Web has no flutter_local_notifications implementation. Return a no-op
+  // service *before* touching the plugin provider so the plugin is never
+  // instantiated in the browser.
+  if (!PlatformSupport.supportsLocalNotifications) {
+    return const NoOpNotificationService();
+  }
   return NotificationServiceImpl(
     ref.watch(flutterLocalNotificationsPluginProvider),
   );

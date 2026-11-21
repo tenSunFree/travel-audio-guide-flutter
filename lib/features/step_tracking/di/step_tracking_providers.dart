@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_travel_audio_guide/features/step_tracking/data/services/step_tracking_service_impl.dart';
@@ -6,7 +6,10 @@ import 'package:flutter_travel_audio_guide/features/step_tracking/domain/service
 import 'package:flutter_travel_audio_guide/features/step_tracking/presentation/controllers/step_tracking_controller.dart';
 
 final stepTrackingServiceProvider = Provider<StepTrackingService>((ref) {
-  if (Platform.isAndroid) return StepTrackingServiceImpl();
+  // Do not use dart:io Platform here: it throws on Flutter Web.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return StepTrackingServiceImpl();
+  }
   return const NoOpStepTrackingService();
 });
 

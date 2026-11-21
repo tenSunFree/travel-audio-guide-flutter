@@ -15,6 +15,9 @@
 # Optional:
 #   SENTRY_DSN
 #   APP_RELEASE
+#   TAIPEI_API_BASE_URL  (Flutter Web only: CORS proxy for the Taipei API;
+#                         omitted from the JSON when unset so mobile builds
+#                         keep calling the official API directly)
 #
 # Usage:
 #   bash scripts/create_runtime_env.sh
@@ -52,6 +55,7 @@ jq -n \
   --arg sentryDsn "${SENTRY_DSN:-}" \
   --arg appEnv "$APP_ENV" \
   --arg appRelease "${APP_RELEASE:-}" \
+  --arg taipeiApiBaseUrl "${TAIPEI_API_BASE_URL:-}" \
   '{
     SUPABASE_URL: $supabaseUrl,
     SUPABASE_PUBLISHABLE_KEY: $supabasePublishableKey,
@@ -59,6 +63,6 @@ jq -n \
     SENTRY_DSN: $sentryDsn,
     APP_ENV: $appEnv,
     APP_RELEASE: $appRelease
-  }' > "$OUTPUT"
+  } + (if $taipeiApiBaseUrl == "" then {} else {TAIPEI_API_BASE_URL: $taipeiApiBaseUrl} end)' > "$OUTPUT"
 
 echo "Runtime configuration created: $OUTPUT"

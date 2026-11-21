@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_travel_audio_guide/features/step_tracking/data/services/step_tracking_service_impl.dart';
@@ -7,7 +7,7 @@ import 'package:flutter_travel_audio_guide/features/step_tracking/presentation/c
 
 void main() {
   test('desktop test environment 回傳 NoOpStepTrackingService', () {
-    if (Platform.isAndroid) return;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) return;
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final service = container.read(stepTrackingServiceProvider);
@@ -17,7 +17,7 @@ void main() {
   test(
     'stepTrackingControllerProvider 組裝出綁定 stepTrackingServiceProvider 的 controller',
     () async {
-      if (Platform.isAndroid) return;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) return;
       final container = ProviderContainer();
       addTearDown(container.dispose);
       // Providers marked .autoDispose are immediately disposed when they have
