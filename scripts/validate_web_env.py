@@ -4,6 +4,7 @@
 Usage: python scripts/validate_web_env.py env/web-staging.json
 Only checks syntax and policy; it does not ping the endpoints.
 """
+import ipaddress
 import json
 import sys
 from pathlib import Path
@@ -14,6 +15,14 @@ URL_KEYS = ("SUPABASE_URL", "BACKEND_BASE_URL", "TAIPEI_API_BASE_URL")
 PLACEHOLDERS = ("YOUR_", "REPLACE_ME", "example.com")
 FORBIDDEN_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "10.0.2.2"}
 DIRECT_TAIPEI_HOSTS = {"www.travel.taipei", "travel.taipei"}
+
+
+def is_public_host(host):
+    """IP literals must be globally routable; hostnames fall through to other checks."""
+    try:
+        return ipaddress.ip_address(host).is_global
+    except ValueError:
+        return True
 
 
 def validate(data):
@@ -36,6 +45,7 @@ def validate(data):
             host = parsed.hostname
             port = parsed.port  # validates bad port values
             if (parsed.scheme != "https" or not host or host in FORBIDDEN_HOSTS
+                    or not is_public_host(host)
                     or parsed.username is not None or parsed.password is not None
                     or parsed.query or parsed.fragment or port == 0):
                 errors.append(f"{key} must be a valid public HTTPS URL without credentials/query/fragment")
