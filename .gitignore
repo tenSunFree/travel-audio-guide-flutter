@@ -86,3 +86,15 @@ key.properties
 
 # FVM Version Cache
 .fvm/
+
+# Flutter Web: generated Drift runtime files (recreate with scripts/fetch_web_sqlite_assets.sh)
+web/sqlite3.wasm
+web/drift_worker.js
+
+# Flutter Web deploy-time Dart defines (commit only the .example.json) and
+# the Web-only FlutterFire output that is merged into the staging options
+env/web-staging.json
+lib/config/firebase/firebase_options_web_generated.dart
+
+# Firebase CLI local deploy cache
+.firebase/

@@ -8,6 +8,9 @@
 [![codecov](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter/graph/badge.svg)](https://codecov.io/gh/tenSunFree/travel-audio-guide-flutter)
 [![Flutter](https://img.shields.io/badge/Flutter-3.44.9-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12.0-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20iOS%20%7C%20Web-607D8B)](#flutter-web)
+[![Web Hosting](https://img.shields.io/badge/Web%20Hosting-Firebase%20Hosting-FFCA28?logo=firebase&logoColor=black)](#flutter-web)
+[![Edge Proxy](https://img.shields.io/badge/Edge%20Proxy-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)](#taipei-api-cors-proxy)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2B%20Feature--First-4CAF50)](#architecture)
 [![State](https://img.shields.io/badge/State-Riverpod-1565C0)](https://riverpod.dev)
 [![Data](https://img.shields.io/badge/Data-Offline--First%20%2B%20Drift-009688)](#offline-first-experience)
@@ -27,6 +30,9 @@
 
 Travel audio guide app with local content caching, offline browsing, audio download, offline
 playback, and a built-in media player, built using Riverpod, Drift, and Clean Architecture.
+
+The same codebase also builds for Flutter Web, deployed to Firebase Hosting (see
+[Flutter Web](#flutter-web) and [Web Platform Support](#web-platform-support)).
 
 This project is for learning and technical practice.
 
@@ -495,6 +501,43 @@ retry.
 - Distance calculations are performed locally using Drift-cached data
 - No background location tracking or additional backend geo-query APIs are required
 
+### Web Platform Support
+
+- One codebase for Android, iOS and Flutter Web: standard `flutter build web` (no `--flavor`, no
+  `--wasm`), served by Firebase Hosting with a single-page-app rewrite so deep links and refreshes
+  resolve to `index.html`
+- Platform differences are isolated behind `PlatformSupport` (`lib/core/platform/platform_support.dart`)
+  and conditional imports; shared code never imports `dart:io` or uses `Platform.isXxx`, which throw
+  in the browser
+- Drift runs on SQLite compiled to WebAssembly (`sqlite3.wasm` + `drift_worker.js`), so the
+  offline-first cache works in the browser too. The two runtime files are fetched at the versions
+  locked in `pubspec.lock` by `scripts/fetch_web_sqlite_assets.sh` and are not committed
+- The Taipei Travel Open API sends no CORS headers, so browsers cannot call it directly. Web builds
+  go through a small allow-listed Cloudflare Worker proxy (see
+  [Taipei API CORS Proxy](#taipei-api-cors-proxy)); Android and iOS keep calling the API directly
+- Mobile-only capabilities degrade safely instead of crashing on Web:
+
+| Capability                | Android / iOS             | Web                                          |
+|---------------------------|---------------------------|----------------------------------------------|
+| Browse, offline cache     | Yes                       | Yes (Drift WASM)                             |
+| Local notifications       | Yes                       | No-op service, no permission prompt          |
+| Audio download            | Yes (local `.mp3`)        | Not available (no local file system)         |
+| Step counting             | Android only              | No-op service                                |
+| Network images            | Disk cache                | Browser-loaded (follow-up stage)             |
+| Remote audio streaming    | Yes                       | Follow-up stage                              |
+
+#### Web rollout stages
+
+Web support ships in small reviewed stages, each on its own branch and pull request into `develop`:
+
+| Stage | Branch                           | Scope                                                                 |
+|-------|----------------------------------|-----------------------------------------------------------------------|
+| 1     | `feat/web-platform-bootstrap`    | App boots in the browser, Hosting preview, Taipei API CORS proxy      |
+| 2     | `feat/web-media-support`         | Images, remote audio streaming, hide calendar / download actions      |
+| 3     | `feat/web-responsive-routing`    | Responsive layout, deep link / refresh behavior, first-visit redirect |
+| 4     | `ci/web-build-deployment`        | Web CI job, browser smoke test, automatic staging deploy              |
+| 5     | `chore/web-production-readiness` | Production configuration, security checks, regression, go-live        |
+
 ---
 
 ## Tech Stack
@@ -587,6 +630,15 @@ retry.
 - Firebase App Distribution  
   Automated pre-release distribution for `staging` and Release Candidate builds via GitHub Actions
   and the Firebase CLI
+- Flutter Web + Firebase Hosting  
+  Browser build of the same app (Served from Firebase Hosting with an SPA rewrite and cache headers
+  configured in `firebase.json`; preview channels are used for staging)
+- drift (WASM) + sqlite3.wasm  
+  Browser persistence for the offline-first cache (`drift_worker.js` and `sqlite3.wasm` are fetched
+  by script at the versions pinned in `pubspec.lock`)
+- Cloudflare Workers  
+  Edge CORS proxy for the Taipei Travel Open API on Web (`infra/taipei-api-proxy`: fixed upstream,
+  GET-only, origin and header allow-lists, redirect refusal, short edge caching)
 - GitHub Branch Protection  
   Protected `develop`, `main`, and `release/*` branches with required PR checks before merge
 
@@ -609,6 +661,7 @@ time:
 | `SUPABASE_URL`              | Yes      | Your Supabase project URL                                                                                 |
 | `SUPABASE_PUBLISHABLE_KEY`  | Yes      | Supabase publishable key. Safe to expose client-side by design — it is not a secret and relies on Supabase Row Level Security, not obscurity |
 | `BACKEND_BASE_URL`          | Yes in CI / optional locally | CI (`scripts/create_runtime_env.sh`) requires this to be explicitly set — no silent fallback for staging/RC/production builds. Local `flutter run` without this key in `env/dev.json` falls back to `http://localhost:8080`. Use `http://10.0.2.2:8080` on the Android emulator to reach the host machine's backend; use your machine's LAN IP for physical device testing |
+| `TAIPEI_API_BASE_URL`       | Web only | Base URL of the Taipei API CORS proxy, ending in `/open-api` (for example `https://<worker>.workers.dev/open-api`). Omit it on Android/iOS: the default is the official `https://www.travel.taipei/open-api`. Validate Web deploy settings with `python scripts/validate_web_env.py env/web-staging.json` |
 | `SENTRY_DSN`                | No       | Existing Sentry configuration                                                                              |
 
 Values that must **never** be embedded in the Flutter app: the Supabase `service_role` / `secret`
@@ -950,6 +1003,110 @@ by CI builds, which take the build number from the tag.
 
 ---
 
+## Flutter Web
+
+The Web build uses the same entrypoints as mobile (`lib/main_staging.dart`, `lib/main_production.dart`)
+but a standard build: there is no `--flavor` on Web, and `--wasm` is not used.
+
+### One-time setup
+
+1. Fetch the Drift runtime files (git-ignored, versions come from `pubspec.lock`; rerun after
+   upgrading `drift` or `sqlite3`):
+
+   ```bash
+   bash scripts/fetch_web_sqlite_assets.sh
+   ```
+
+2. Add a Web app to the Firebase project and merge its options into the git-ignored
+   `lib/config/firebase/firebase_options_<flavor>.dart`. Generate a Web-only file first, so the
+   existing Android/iOS options are not overwritten:
+
+   ```powershell
+   flutterfire configure --project=travel-audio-guide-flutter --platforms=web --out=lib/config/firebase/firebase_options_web_generated.dart
+   ```
+
+   Then copy its `web` `FirebaseOptions` and the `if (kIsWeb) return web;` branch into the real
+   options file. Without a Web config, a browser build throws `UnsupportedError` at startup.
+
+3. Create `env/web-staging.json` from `env/web-staging.example.json`. It is git-ignored; never commit
+   it.
+
+### Run locally
+
+Start the CORS proxy in a second terminal (see [Taipei API CORS Proxy](#taipei-api-cors-proxy)),
+then run the app on a fixed port:
+
+```powershell
+cd infra/taipei-api-proxy
+npx wrangler dev --env dev --port 8787
+```
+
+```powershell
+fvm flutter run -d chrome --web-port 5555 -t lib/main_staging.dart `
+  --dart-define-from-file=env/dev.json `
+  --dart-define=TAIPEI_API_BASE_URL=http://127.0.0.1:8787/open-api
+```
+
+In Chrome DevTools → Network, API requests should go to `127.0.0.1:8787`, not `travel.taipei`.
+
+### Build and deploy a preview
+
+```powershell
+bash scripts/fetch_web_sqlite_assets.sh
+python scripts/validate_web_env.py env/web-staging.json
+fvm flutter build web --release -t lib/main_staging.dart --dart-define-from-file=env/web-staging.json
+firebase hosting:channel:deploy staging --expires 30d
+```
+
+Preview channel URLs look like `https://<site>--staging-<hash>.web.app`. `firebase.json` rewrites
+every path to `/index.html`, serves `.wasm` as `application/wasm`, and disables caching for the app
+shell, the service worker and the Drift worker so a new deploy is picked up. Production deployment
+is a separate, deliberate step (see the rollout stages above).
+
+For Supabase Auth, add each Web origin (the Hosting domains
+and, for local runs, `http://localhost:5555`) to the redirect URL allow-list in the Supabase
+dashboard.
+
+### Taipei API CORS Proxy
+
+`infra/taipei-api-proxy` is a Cloudflare Worker that lets the browser read the Taipei Travel Open API.
+It is a narrow adapter, not a general proxy:
+
+- Fixed upstream `https://www.travel.taipei`; only `GET /open-api/*` is forwarded, and the target is
+  never taken from a query parameter
+- Browser origins are allow-listed (production Hosting domains, the `staging` preview channel, and
+  `localhost` only in the local `dev` environment); requests without an allowed `Origin` get `403`
+- Preflight (`OPTIONS`) accepts only `GET` and an explicit header allow-list (`accept`,
+  `content-type`, and the Sentry/W3C trace headers that Dio adds); cookies, `Authorization` and other
+  client headers are never forwarded
+- Upstream redirects and failures are turned into `502` / `no-store` responses; successful
+  responses are cached at the edge for a short time
+- The upstream's firewall rejects requests with no `User-Agent`, so the Worker sends a fixed,
+  descriptive one (`TravelAudioGuideWebProxy/1.0`)
+
+CORS is not authentication: any non-browser client can spoof `Origin`. Use Cloudflare rate limiting /
+WAF rules and monitor usage on the public Worker.
+
+```powershell
+cd infra/taipei-api-proxy
+npm ci          # Node.js 22.12+ (required by Wrangler)
+npm test        # unit tests, no network required
+npx wrangler login
+npx wrangler deploy
+```
+
+Use the exact `https://....workers.dev` URL that Wrangler prints, append `/open-api`, and put it in
+`TAIPEI_API_BASE_URL`. Never deploy the `dev` environment publicly. See
+[`infra/taipei-api-proxy/README.md`](./infra/taipei-api-proxy/README.md) for verification commands.
+
+### Known limitations (Web)
+
+These are tracked in the rollout stages above: network images and remote audio playback, hiding the
+calendar and download actions, responsive layout, and first-visit deep links. Local notifications,
+audio download and step counting are mobile-only and are no-ops in the browser.
+
+---
+
 ## Credits
 
 This project is created for independent learning and demonstration purposes.
@@ -1007,6 +1164,11 @@ travel-audio-guide-flutter
 │              ├─ MainActivity.kt
 │              └─ StepSensorManager.kt
 ├─ ios                                  # Standard Flutter iOS runner
+├─ infra
+│  └─ taipei-api-proxy                  # Cloudflare Worker: CORS proxy for the Taipei API (Web only)
+│     ├─ worker.js
+│     ├─ wrangler.toml
+│     └─ test                           # node --test unit tests
 ├─ lib
 │  ├─ app.dart
 │  ├─ bootstrap.dart
@@ -1028,6 +1190,7 @@ travel-audio-guide-flutter
 │  │  ├─ monitoring                 # MonitoringService (Sentry wrapper)
 │  │  ├─ nearby                     # Location controller, nearby models/utils
 │  │  ├─ network                    # Dio clients, Supabase JWT auth interceptor, log filter
+│  │  ├─ platform                   # PlatformSupport: web / mobile capability flags
 │  │  ├─ preferences                # SharedPreferences provider
 │  │  ├─ router                     # GoRouter config + route loaders (onboarding redirect; guest-first,
 │  │  │                             # whitelist-based auth redirect via protectedPaths)
@@ -1111,12 +1274,14 @@ travel-audio-guide-flutter
 │  ├─ coverage.sh                       # LCOV + local HTML coverage report
 │  ├─ create_runtime_env.sh             # CI-only: builds env/ci.json from GitHub vars/secrets
 │  ├─ doctor.sh
+│  ├─ fetch_web_sqlite_assets.sh        # Downloads sqlite3.wasm + drift_worker.js into web/
 │  ├─ format.sh
 │  ├─ integration_test.sh               # Runs integration_test/ on a device/emulator (not in check.sh)
 │  ├─ release.sh
 │  ├─ run_dev.sh
 │  ├─ secret-scan.sh
-│  └─ setup-hooks.sh
+│  ├─ setup-hooks.sh
+│  └─ validate_web_env.py               # Validates Web Dart defines (no values are logged)
 ├─ test
 │  ├─ app
 │  │  └─ app_smoke_test.dart
@@ -1146,13 +1311,15 @@ travel-audio-guide-flutter
 │  ├─ audio_flow_test.dart          # Download → file write → play → pause
 │  └─ auth_flow_test.dart           # Optional login → logout back to guest (flag enabled in-test)
 ├─ env
-│  └─ example.json                  # Runtime configuration template
+│  ├─ example.json                  # Runtime configuration template
+│  └─ web-staging.example.json      # Web deploy configuration template
+├─ web                              # Flutter Web shell (index.html, manifest, icons)
 ├─ .fvmrc                           # Optional Flutter version pin
 ├─ .gitattributes                   # Line-ending policy
 ├─ analysis_options.yaml            # very_good_analysis + app_lints
 ├─ CHANGELOG.md
 ├─ codecov.yml
-├─ firebase.json
+├─ firebase.json                    # Firebase config + Hosting (SPA rewrite, cache headers)
 ├─ Makefile
 ├─ pubspec.lock
 ├─ pubspec.yaml
@@ -1169,7 +1336,9 @@ lib/config/firebase/firebase_options_staging.dart
 lib/config/firebase/firebase_options_production.dart
 android/app/src/staging/google-services.json
 android/app/src/production/google-services.json
-env/dev.json  env/release.json  env/ci.json
+env/dev.json  env/release.json  env/ci.json  env/web-staging.json
+web/sqlite3.wasm  web/drift_worker.js                  # recreate with scripts/fetch_web_sqlite_assets.sh
+lib/config/firebase/firebase_options_web_generated.dart  # Web-only FlutterFire output, merged by hand
 android/key.properties
 android/app/*.jks  android/app/*.keystore
 ```
@@ -1195,7 +1364,8 @@ implementations to those abstractions.
 
 Data comes from these sources:
 
-- Remote: Taipei Travel Open API, Supabase Auth, and the Go backend (`/api/v1/me`)
+- Remote: Taipei Travel Open API (through the CORS proxy on Web), Supabase Auth, and the Go backend
+  (`/api/v1/me`)
 - Local: Drift / SQLite, SharedPreferences, downloaded audio files, and Android native services
   (step sensor, Health Connect)
 

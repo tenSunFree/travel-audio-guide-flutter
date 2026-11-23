@@ -1,0 +1,9 @@
+{
+  "SUPABASE_URL": "https://YOUR_PROJECT.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_REPLACE_ME",
+  "BACKEND_BASE_URL": "https://YOUR_BACKEND_HOST",
+  "TAIPEI_API_BASE_URL": "https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev/open-api",
+  "SENTRY_DSN": "",
+  "APP_ENV": "staging",
+  "APP_RELEASE": "flutter-travel-audio-guide-web@staging"
+}
