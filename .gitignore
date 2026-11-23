@@ -95,3 +95,6 @@ web/drift_worker.js
 # the Web-only FlutterFire output that is merged into the staging options
 env/web-staging.json
 lib/config/firebase/firebase_options_web_generated.dart
+
+# Firebase CLI local deploy cache
+.firebase/

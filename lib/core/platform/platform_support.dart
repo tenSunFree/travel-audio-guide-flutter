@@ -19,12 +19,20 @@ class PlatformSupport {
   /// Audio files can be downloaded to the device file system.
   static bool get supportsAudioDownload => !kIsWeb;
 
+  /// Returns [url] unchanged on mobile; on Web promotes HTTP to HTTPS for
+  /// hosts known to support it (see [upgradeKnownHttpsHost]).
+  static String webSafeUrl(String url) =>
+      kIsWeb ? upgradeKnownHttpsHost(url) : url;
+
   /// Promote HTTP only for hosts known to offer HTTPS. Do NOT rewrite
   /// arbitrary media URLs: a server may not support TLS on the same host.
   /// On HTTPS sites, all other HTTP resources must use a trusted proxy or
   /// provide their own working HTTPS URL (otherwise mixed-content may fail).
-  static String webSafeUrl(String url) {
-    if (!kIsWeb) return url;
+  ///
+  /// Pure function with no platform check so it can be unit-tested on the VM.
+  /// App code should call [webSafeUrl] instead.
+  @visibleForTesting
+  static String upgradeKnownHttpsHost(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.scheme != 'http') return url;
     const confirmedHttpsHosts = {'travel.taipei', 'www.travel.taipei'};
