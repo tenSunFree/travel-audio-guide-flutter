@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_travel_audio_guide/core/database/daos/activity_dao.dart';
 import 'package:flutter_travel_audio_guide/core/database/daos/attraction_dao.dart';
 import 'package:flutter_travel_audio_guide/core/database/daos/audio_guide_dao.dart';
@@ -13,6 +14,20 @@ import 'package:flutter_travel_audio_guide/core/database/tables/sync_meta_table.
 import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 
 part 'app_database.g.dart';
+
+/// Logs which implementation Drift Web fell back to, if any browser
+/// features were missing. Extracted so it can be unit tested on the VM.
+@visibleForTesting
+void logDriftWebFallback(
+  Object chosenImplementation,
+  Iterable<Object> missingFeatures,
+) {
+  if (missingFeatures.isEmpty) return;
+  AppLogger.warning(
+    'Drift Web using $chosenImplementation due to '
+    'missing browser features: $missingFeatures',
+  );
+}
 
 @DriftDatabase(
   tables: [
@@ -35,14 +50,10 @@ class AppDatabase extends _$AppDatabase {
           web: DriftWebOptions(
             sqlite3Wasm: Uri.parse('sqlite3.wasm'),
             driftWorker: Uri.parse('drift_worker.js'),
-            onResult: (result) {
-              if (result.missingFeatures.isNotEmpty) {
-                AppLogger.warning(
-                  'Drift Web using ${result.chosenImplementation} due to '
-                  'missing browser features: ${result.missingFeatures}',
-                );
-              }
-            },
+            onResult: (result) => logDriftWebFallback(
+              result.chosenImplementation,
+              result.missingFeatures,
+            ),
           ),
         ),
       );
