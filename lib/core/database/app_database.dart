@@ -15,17 +15,22 @@ import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 
 part 'app_database.g.dart';
 
-/// Logs which implementation Drift Web fell back to, if any browser
-/// features were missing. Extracted so it can be unit tested on the VM.
+/// Handles the result of Drift Web's storage detection and logs a warning
+/// when the browser lacked features, forcing a fallback implementation.
+///
+/// [result] is Drift's `WasmDatabaseResult`. It is typed `dynamic` so the
+/// handler can be unit tested on the VM without constructing that class.
 @visibleForTesting
-void logDriftWebFallback(
-  Object chosenImplementation,
-  Iterable<Object> missingFeatures,
-) {
-  if (missingFeatures.isEmpty) return;
+void handleDriftWebResult(dynamic result) {
+  // Dynamic access allows VM tests to supply a fake WasmDatabaseResult.
+  // ignore: avoid_dynamic_calls
+  final missing = result.missingFeatures as Iterable<Object>;
+  if (missing.isEmpty) return;
+  // Dynamic access avoids requiring the concrete Drift Web result in VM tests.
+  // ignore: avoid_dynamic_calls
+  final chosen = result.chosenImplementation as Object;
   AppLogger.warning(
-    'Drift Web using $chosenImplementation due to '
-    'missing browser features: $missingFeatures',
+    'Drift Web using $chosen due to missing browser features: $missing',
   );
 }
 
@@ -50,10 +55,7 @@ class AppDatabase extends _$AppDatabase {
           web: DriftWebOptions(
             sqlite3Wasm: Uri.parse('sqlite3.wasm'),
             driftWorker: Uri.parse('drift_worker.js'),
-            onResult: (result) => logDriftWebFallback(
-              result.chosenImplementation,
-              result.missingFeatures,
-            ),
+            onResult: handleDriftWebResult,
           ),
         ),
       );
