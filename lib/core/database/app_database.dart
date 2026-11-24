@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_travel_audio_guide/core/database/daos/activity_dao.dart';
 import 'package:flutter_travel_audio_guide/core/database/daos/attraction_dao.dart';
 import 'package:flutter_travel_audio_guide/core/database/daos/audio_guide_dao.dart';
@@ -11,6 +10,7 @@ import 'package:flutter_travel_audio_guide/core/database/tables/attraction_table
 import 'package:flutter_travel_audio_guide/core/database/tables/audio_guide_table.dart';
 import 'package:flutter_travel_audio_guide/core/database/tables/reminder_table.dart';
 import 'package:flutter_travel_audio_guide/core/database/tables/sync_meta_table.dart';
+import 'package:flutter_travel_audio_guide/core/utils/app_logger.dart';
 
 part 'app_database.g.dart';
 
@@ -37,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
             driftWorker: Uri.parse('drift_worker.js'),
             onResult: (result) {
               if (result.missingFeatures.isNotEmpty) {
-                debugPrint(
+                AppLogger.warning(
                   'Drift Web using ${result.chosenImplementation} due to '
                   'missing browser features: ${result.missingFeatures}',
                 );
