@@ -1,0 +1,194 @@
+diff --git a/README.md b/README.md
+index 33ba7ce..8358ffe 100644
+--- a/README.md
++++ b/README.md
+@@ -240,14 +240,20 @@ below for how the two sides fit together.
+   community-adopted Dart/Flutter lint set
+ - Generated files (`*.g.dart`, `*.freezed.dart`, per-flavor Firebase config) are excluded from
+   analysis to keep signal-to-noise high
+-- Static analysis runs through the standard `flutter analyze` command; the standalone
+-  `packages/app_lints` package resolves its own dependencies before analysis in both CI and
+-  `scripts/check.sh`
+-- Lint violations are enforced in CI (`Static analysis` step in `ci.yml`) and locally via
+-  `scripts/check.sh` and the `pre-push` git hook
++- The `very_good_analysis` baseline runs through the standard `flutter analyze` command; the
++  standalone `packages/app_lints` package resolves its own dependencies before analysis in both CI
++  and `scripts/check.sh`
++- Custom lint rules are enforced by `scripts/quality/analyze-dart.sh`, which runs
++  `dart analyze --fatal-infos` on explicit file paths, because `flutter analyze` and directory-wide
++  analysis can pass silently without reporting the custom diagnostics. A built-in negative probe
++  proves the plugin is active before a clean result is trusted — see
++  [Static Analysis](#static-analysis)
++- Lint violations are blocked at three points: the `pre-commit` hook (staged files), the `pre-push`
++  hook via `scripts/check.sh`, and CI (`Static analysis` and `Custom lint analysis` steps in
++  `ci.yml`, `cd.yml`, `deploy-rc.yml` and `deploy-staging.yml`)
+ - A project-owned [`analysis_server_plugin`](https://pub.dev/packages/analysis_server_plugin)-based
+   analyzer plugin (`packages/app_lints`) enforces selected Clean Architecture dependency rules and
+-  team naming/logging conventions directly inside `flutter analyze` —
++  team naming/logging conventions as analyzer diagnostics —
+   see [Architecture Enforcement](#architecture-enforcement)
+ - `pubspec.yaml` dependency ordering is enforced by the built-in `sort_pub_dependencies` lint and
+   can be auto-fixed on demand by `scripts/quality/sort_pubspec_dependencies.py`
+@@ -259,8 +265,10 @@ The project includes a custom [
+ Plugin under `packages/app_lints/`.
+ 
+ It converts selected architecture boundaries and team conventions into diagnostics reported directly
+-through the standard analyzer pipeline. The same rules are available during local development and
+-enforced by the existing `flutter analyze` CI step without introducing a separate lint command.
++through the standard analyzer pipeline. The same rules are shown in the IDE and enforced by
++`scripts/quality/analyze-dart.sh` in the `pre-commit` hook, `scripts/check.sh` and the CI / release
++workflows (see [Static Analysis](#static-analysis)), because `flutter analyze` alone can silently
++skip them.
+ 
+ #### Enabled rules
+ 
+@@ -319,7 +327,8 @@ retry.
+ 
+ - Local CI check script (`scripts/check.sh`) mirrors the main GitHub Actions validation pipeline:
+   dependency installation for both the main app and `packages/app_lints`, format check, static
+-  analysis, tests with coverage, LCOV report validation, and staging flavor debug APK build —
++  analysis, custom lint analysis, tests with coverage, LCOV report validation, and staging flavor
++  debug APK build —
+   validates only and never rewrites source files
+ - Local coverage tooling (`scripts/coverage.sh`) runs `flutter test --coverage`, verifies that
+   `coverage/lcov.info` was generated, and produces an HTML coverage report via `genhtml` (lcov) or
+@@ -336,6 +345,11 @@ retry.
+   `dependencies`, `dev_dependencies`, and `dependency_overrides` across project `pubspec.yaml`
+   files; the built-in `sort_pub_dependencies` analyzer lint remains the source of truth for
+   validation
++- Custom lint runner (`scripts/quality/analyze-dart.sh`) is the single entry point for the
++  `packages/app_lints` rules, shared by the `pre-commit` hook (`--staged`), `scripts/check.sh` and
++  CI. `scripts/quality/verify-lint-plugin.sh` first writes a temporary, git-ignored probe file that
++  deliberately calls `debugPrint` and requires `avoid_debug_print` to be reported, so a silently
++  broken plugin cannot produce a false green
+ - Environment health check script (`scripts/doctor.sh`) verifies required tooling (Git, Flutter,
+   Dart), optional tooling (Java, FVM, gitleaks), `env/` configuration files, FVM version pinning,
+   and installed Git hooks before development starts
+@@ -348,8 +362,10 @@ retry.
+ - Full-repository secret scan script (`scripts/secret-scan.sh`) runs `gitleaks detect` across the
+   entire working tree and Git history, complementing the staged-only scan in the pre-commit hook
+ - Git hook automation (`scripts/setup-hooks.sh`) installs local quality gates in one command; hook
+-  templates live under `scripts/hooks/` and are copied into `.git/hooks/`:
+-  - `pre-commit`: Dart format check and a staged-changes secret scan (
++  templates live under `scripts/hooks/` and are copied into the repository's Git hooks directory
++  (`.git/hooks/`; the script stops without overwriting anything if `core.hooksPath` is customized):
++  - `pre-commit`: Dart format check, `flutter analyze`, custom lint analysis of the staged Dart
++    files, and a staged-changes secret scan (
+     uses [gitleaks](https://github.com/gitleaks/gitleaks) when available, falling back to a
+     built-in regex scanner otherwise)
+   - `commit-msg`: validates commit messages against
+@@ -403,7 +419,7 @@ retry.
+   (security advisories always target `main` directly, per Dependabot's default behavior, while
+   routine version updates target `develop`)
+ - Configured GitHub Actions CI for Pull Requests, including Dart format checks, static analysis,
+-  unit tests, and debug APK builds for both `staging` and `production` flavors
++  custom lint analysis, unit tests, and debug APK builds for both `staging` and `production` flavors
+ - Added a separate `Integration Test` workflow (`integration-test.yml`) that runs the integration
+   tests on Android emulators in two tiers: a single **smoke** run (API 36, `pixel_6`) for pull
+   requests to `main`/`develop`, and a sampled **compatibility matrix** (minSdk, production,
+@@ -616,7 +632,8 @@ Web support ships in small reviewed stages, each on its own branch and pull requ
+   files are excluded from analysis)
+ - analysis_server_plugin (`packages/app_lints`)  
+   Project-owned Dart analyzer plugin that turns selected Clean Architecture dependency rules and
+-  team conventions into native `flutter analyze` diagnostics
++  team conventions into analyzer diagnostics, enforced through explicit-file `dart analyze` runs
++  in the `pre-commit` hook, `pre-push` check script and CI
+ - shared_preferences  
+   Lightweight local key-value storage (Persists onboarding completion state to control first-launch
+   welcome flow and subsequent app startup routing)
+@@ -696,6 +713,7 @@ This checks your local environment, installs Flutter dependencies, creates `env/
+ ```bash
+ bash scripts/format.sh       # auto-format Dart files (modifies files)
+ bash scripts/check.sh        # local CI checks with coverage validation — never modifies files
++bash scripts/quality/analyze-dart.sh  # custom lint rules on all tracked Dart files (explicit paths)
+ bash scripts/coverage.sh     # generate coverage + local HTML report when tooling is available
+ bash scripts/integration_test.sh  # run integration tests on a connected device/emulator (slow)
+ bash scripts/secret-scan.sh  # full repo + git-history secret scan
+@@ -726,22 +744,37 @@ The project-local `packages/app_lints` Dart Analyzer Plugin participates in the
+ pipeline for project-specific architecture and convention diagnostics.
+ 
+ ```bash
+-flutter analyze
++flutter analyze                        # very_good_analysis baseline
++bash scripts/quality/analyze-dart.sh   # custom app_lints rules (explicit file paths)
+ ```
+ 
+ - Generated files (`*.g.dart`, `*.freezed.dart`, per-flavor Firebase config under
+   `lib/config/firebase/`) are excluded from analysis
+ - A small set of rules are temporarily relaxed while the codebase catches up with the stricter
+   baseline (see comments in `analysis_options.yaml`); new code is still expected to stay clean
+-- No separate custom-lint command is required — both the baseline and enabled `app_lints`
+-  diagnostics are reported through `flutter analyze`
++- `flutter analyze` (and directory-wide `dart analyze`) can pass silently without reporting the
++  `app_lints` diagnostics, while analyzing explicit file paths reports them reliably.
++  `scripts/quality/analyze-dart.sh` therefore runs `dart analyze --fatal-infos` on every tracked
++  Dart file under `lib`, `test`, `integration_test` and `pigeons` (generated files and per-flavor
++  Firebase options excluded)
++- Before trusting a clean result, `scripts/quality/verify-lint-plugin.sh` creates a temporary probe
++  (`lib/app_lints_smoke_probe.dart`, git-ignored, never overwrites an existing file, removed on exit)
++  that deliberately calls `debugPrint`, and requires `avoid_debug_print` to be reported. If it is
++  not, the check fails instead of passing silently; try
++  `(cd packages/app_lints && fvm dart pub get)` and re-run
++- `bash scripts/quality/analyze-dart.sh --staged` is what the `pre-commit` hook runs: it analyzes
++  the staged Dart files, escalates to the full analysis when the lint plugin, `analysis_options.yaml`
++  or dependencies are staged, and refuses files that also have unstaged edits (the analyzer reads
++  the working tree, not the index)
++- The same script runs in CI right after the `Static analysis` step of `ci.yml`, `cd.yml`,
++  `deploy-rc.yml` and `deploy-staging.yml`
+ - Because `packages/app_lints` is a standalone Dart package, its dependencies are resolved
+   separately with `dart pub get`; this is handled automatically by GitHub Actions CI and
+   `scripts/check.sh` — if you ever see `uri_does_not_exist` errors scoped to `packages/app_lints`,
+   run `(cd packages/app_lints && fvm dart pub get)` once
+ - After changing `analysis_options.yaml` or `packages/app_lints`, restart the Dart Analysis Server
+   if IDE diagnostics appear stale; command-line analysis can be rerun directly with
+-  `flutter analyze`
++  `flutter analyze` and `bash scripts/quality/analyze-dart.sh`
+ 
+ ### Integration Tests
+ 
+@@ -892,13 +925,18 @@ Hook templates live under `scripts/hooks/` and are installed into `.git/hooks/`
+ bash scripts/setup-hooks.sh
+ ```
+ 
++Hooks are copied, not symlinked: rerun the command after pulling changes to `scripts/hooks/`.
++
+ Installed hooks:
+ 
+ **`pre-commit`**
+ 
+-Runs fast, staged-only checks before every commit:
++Runs these checks before every commit (the analysis steps can take a while on a cold cache):
+ 
+ - Dart format validation for `lib`, `test`, `integration_test`, and `pigeons`
++- `flutter analyze` static analysis
++- Custom lint analysis (`scripts/quality/analyze-dart.sh --staged`), which first proves the
++  `app_lints` plugin is active and then analyzes the staged Dart files as explicit paths
+ - Secret scan on staged changes:
+   - Uses `gitleaks` when it is installed
+   - Falls back to a lightweight built-in regex-based scanner with a warning when `gitleaks` is not
+@@ -928,6 +966,7 @@ The local check script validates:
+ - Dependency installation / resolution (main app and `packages/app_lints`)
+ - Dart format validation
+ - Static analysis
++- Custom lint analysis
+ - Unit tests
+ - Staging flavor debug APK build
+ 
+@@ -1142,7 +1181,7 @@ If you plan to open-source it, please choose a license and confirm third-party a
+ travel-audio-guide-flutter
+ ├─ .github
+ │  ├─ workflows
+-│  │  ├─ ci.yml                         # Format, analyze, test with coverage, debug APK builds
++│  │  ├─ ci.yml                         # Format, analyze, custom lints, test with coverage, debug APK builds
+ │  │  ├─ integration-test.yml           # Android emulator smoke / compatibility matrix
+ │  │  ├─ deploy-staging.yml             # Staging build → Firebase App Distribution (develop)
+ │  │  ├─ deploy-rc.yml                  # RC build → Firebase App Distribution (v*.*.*-rc.*)
+@@ -1264,6 +1303,8 @@ travel-audio-guide-flutter
+ │  │  ├─ pre-commit
+ │  │  └─ pre-push
+ │  ├─ quality
++│  │  ├─ analyze-dart.sh                # Custom lint runner: explicit-file dart analyze (all / --staged)
++│  │  ├─ verify-lint-plugin.sh          # Negative probe: proves app_lints reports avoid_debug_print
+ │  │  └─ sort_pubspec_dependencies.py   # Auto-fixes pubspec.yaml dependency ordering
+ │  ├─ _fvm.sh
+ │  ├─ bootstrap.sh

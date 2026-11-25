@@ -6,6 +6,10 @@
 #      does NOT auto-fix; tells you exactly what to run
 #   2. flutter analyze — static analysis (catches lint issues like
 #      unnecessary_underscores before they reach pre-push)
+#   2b. custom lint analysis of the staged Dart files (explicit paths) after proving the
+#      plugin is active — flutter analyze can silently skip the custom lint plugin
+#      (packages/app_lints). Refuses partially staged files (analysis reads the
+#      working tree).
 #   3. Secret scan on staged changes
 #        - gitleaks installed  -> gitleaks protect --staged --verbose
 #        - gitleaks NOT installed -> warn + fallback to built-in regex scanner
@@ -49,6 +53,18 @@ else
     echo ""
     echo "Analyze issues found, commit aborted. Please fix them before committing:"
     echo "fvm flutter analyze"
+    exit 1
+fi
+
+echo ""
+echo "==> dart analyze: custom lints (staged Dart files)"
+
+if bash scripts/quality/analyze-dart.sh --staged; then
+    echo "Passed: custom lint analysis"
+else
+    echo ""
+    echo "Custom lint check failed (see the messages above), commit aborted."
+    echo "To inspect one file: fvm dart analyze --fatal-infos <file>"
     exit 1
 fi
 

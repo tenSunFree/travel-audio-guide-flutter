@@ -98,3 +98,6 @@ lib/config/firebase/firebase_options_web_generated.dart
 
 # Firebase CLI local deploy cache
 .firebase/
+
+# Temporary custom lint smoke probe
+/lib/app_lints_smoke_probe.dart

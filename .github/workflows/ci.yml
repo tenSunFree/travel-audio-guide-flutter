@@ -94,6 +94,9 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
+      - name: Custom lint analysis (plugin check + explicit files)
+        run: bash scripts/quality/analyze-dart.sh
+
       - name: Run tests with coverage
         run: flutter test --coverage
 
