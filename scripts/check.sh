@@ -36,6 +36,11 @@ fi
 
 run_step "flutter analyze" $FLUTTER_CMD analyze
 
+# `flutter analyze` (and directory-wide analysis) can silently skip the custom lint
+# plugin; analyzing explicit files reports it reliably. The script also proves
+# the plugin is active before it trusts a clean result.
+run_step "custom lints (plugin check + explicit files)" bash scripts/quality/analyze-dart.sh
+
 # Run the test suite once, with coverage enabled, so a single test run both
 # validates the code and refreshes the local coverage/lcov.info file.
 # (Do NOT also run scripts/coverage.sh here — that would run the whole
