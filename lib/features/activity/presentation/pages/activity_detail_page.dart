@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_travel_audio_guide/core/analytics/analytics_service.dart';
 import 'package:flutter_travel_audio_guide/core/constants/app_colors.dart';
+import 'package:flutter_travel_audio_guide/core/image/app_network_image_provider.dart';
 import 'package:flutter_travel_audio_guide/core/widgets/detail_action_buttons.dart';
 import 'package:flutter_travel_audio_guide/features/activity/domain/entities/activity.dart';
 import 'package:flutter_travel_audio_guide/features/activity/presentation/widgets/activity_link_row.dart';
@@ -10,9 +12,14 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:url_launcher/url_launcher.dart';
 
 class ActivityDetailPage extends ConsumerStatefulWidget {
-  const ActivityDetailPage({required this.activity, super.key});
+  const ActivityDetailPage({
+    required this.activity,
+    super.key,
+    this.isWeb = kIsWeb,
+  });
 
   final Activity activity;
+  final bool isWeb;
 
   @override
   ConsumerState<ActivityDetailPage> createState() => _ActivityDetailPageState();
@@ -167,7 +174,9 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
   Widget build(BuildContext context) {
     final beginStr = _formatDate(activity.begin);
     final endStr = _formatDate(activity.end);
-    final normalizedDescription = _normalizeHtml(activity.description);
+    final normalizedDescription = widget.isWeb
+        ? activity.description
+        : _normalizeHtml(activity.description);
     final infoRows = <_InfoRowData>[
       if (beginStr.isNotEmpty || endStr.isNotEmpty)
         _InfoRowData(
@@ -307,6 +316,12 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
             const SizedBox(height: 8),
             HtmlWidget(
               normalizedDescription,
+              // Let the HTML parser resolve relative URLs on Web instead of
+              // rewriting markup with regular expressions.
+              baseUrl: widget.isWeb ? Uri.parse('$_siteBaseUrl/') : null,
+              factoryBuilder: widget.isWeb
+                  ? _WebActivityImageFactory.new
+                  : null,
               textStyle: const TextStyle(
                 fontSize: 15,
                 height: 1.8,
@@ -338,6 +353,15 @@ class _ActivityDetailPageState extends ConsumerState<ActivityDetailPage> {
         ),
       ),
     );
+  }
+}
+
+/// Changes only network image loading, preserving HTML sizing and semantics.
+class _WebActivityImageFactory extends WidgetFactory {
+  @override
+  ImageProvider<Object>? imageProviderFromNetwork(String url) {
+    if (url.isEmpty) return null;
+    return appNetworkImageProvider(url, isWeb: true);
   }
 }
 

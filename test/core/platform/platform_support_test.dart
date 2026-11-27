@@ -16,6 +16,24 @@ void main() {
     });
   });
 
+  test('webSafeUrl upgrades only known hosts on Web', () {
+    expect(
+      PlatformSupport.webSafeUrl('http://www.travel.taipei/a.jpg', isWeb: true),
+      'https://www.travel.taipei/a.jpg',
+    );
+    expect(
+      PlatformSupport.webSafeUrl('http://example.org/a.jpg', isWeb: true),
+      'http://example.org/a.jpg',
+    );
+    expect(
+      PlatformSupport.webSafeUrl(
+        'http://www.travel.taipei/a.jpg',
+        isWeb: false,
+      ),
+      'http://www.travel.taipei/a.jpg',
+    );
+  });
+
   group('PlatformSupport.upgradeKnownHttpsHost', () {
     test('upgrades confirmed hosts to https', () {
       expect(

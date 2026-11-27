@@ -108,7 +108,8 @@ below for how the two sides fit together.
 - Tap venue phone numbers to launch the native dialer
 - Open external links and related URLs via `url_launcher`
 - Network images loaded with disk caching and pixel-ratio-aware memory decoding to reduce redundant
-  downloads and memory usage
+  downloads and memory usage on Android and iOS; on Web the browser loads them (see
+  [Web Platform Support](#web-platform-support))
 
 ### Offline-First Experience
 
@@ -531,6 +532,13 @@ retry.
 - The Taipei Travel Open API sends no CORS headers, so browsers cannot call it directly. Web builds
   go through a small allow-listed Cloudflare Worker proxy (see
   [Taipei API CORS Proxy](#taipei-api-cors-proxy)); Android and iOS keep calling the API directly
+- Public network images share one policy, `appNetworkImageProvider`
+  (`lib/core/image/app_network_image_provider.dart`). On Web it prefers decoded bytes and falls back
+  to an HTML element when the host sends no CORS headers; on mobile it is a plain `NetworkImage`.
+  HTTP URLs are promoted to HTTPS only for hosts known to support it
+  (`PlatformSupport.webSafeUrl`). `AppCachedNetworkImage`, the nearby tiles and the HTML images in
+  the activity detail page all use it. Web branches take an injectable `isWeb` (default `kIsWeb`),
+  so they are covered by ordinary VM tests
 - Mobile-only capabilities degrade safely instead of crashing on Web:
 
 | Capability                | Android / iOS             | Web                                          |
@@ -539,7 +547,7 @@ retry.
 | Local notifications       | Yes                       | No-op service, no permission prompt          |
 | Audio download            | Yes (local `.mp3`)        | Not available (no local file system)         |
 | Step counting             | Android only              | No-op service                                |
-| Network images            | Disk cache                | Browser-loaded (follow-up stage)             |
+| Network images            | Disk cache                | Decoded bytes first, HTML `<img>` fallback   |
 | Remote audio streaming    | Yes                       | Follow-up stage                              |
 
 #### Web rollout stages
@@ -583,7 +591,8 @@ Web support ships in small reviewed stages, each on its own branch and pull requ
 - cached_network_image + flutter_cache_manager  
   Network image caching (Replaces Image.network across all features, caches images to disk with a
   configurable stale period, applies pixel-ratio-aware memory decoding, and provides placeholder and
-  error fallback widgets through a unified AppCachedNetworkImage component)
+  error fallback widgets through a unified AppCachedNetworkImage component; on Web the same
+  component switches to a plain `NetworkImage` with an HTML element fallback)
 - Pigeon  
   Type-safe platform interop code generation (Bridges Flutter and native APIs with strongly typed
   messages, minimizes platform channel boilerplate, and improves maintainability for platform
@@ -1140,9 +1149,14 @@ Use the exact `https://....workers.dev` URL that Wrangler prints, append `/open-
 
 ### Known limitations (Web)
 
-These are tracked in the rollout stages above: network images and remote audio playback, hiding the
-calendar and download actions, responsive layout, and first-visit deep links. Local notifications,
-audio download and step counting are mobile-only and are no-ops in the browser.
+These are tracked in the rollout stages above: remote audio playback, hiding the calendar and
+download actions, responsive layout, and first-visit deep links. Local notifications, audio download
+and step counting are mobile-only and are no-ops in the browser.
+
+Web images have no disk cache manager (the browser cache is used). When a host sends no CORS headers
+the image is shown through an HTML element, which the browser may log as a CORS error in the console
+even though the image displays. This fallback does not fix Mixed Content (plain HTTP images on an
+HTTPS page) or `403` responses from the image host.
 
 ---
 
@@ -1225,7 +1239,7 @@ travel-audio-guide-flutter
 │  │  ├─ debug                      # Debug-only app options
 │  │  ├─ error                      # Shared exception types
 │  │  ├─ feature_flags              # Compile-time switches (FeatureFlags.accountEntry, ...)
-│  │  ├─ image                      # Cached network image manager
+│  │  ├─ image                      # Cached network image manager, appNetworkImageProvider (Web policy)
 │  │  ├─ monitoring                 # MonitoringService (Sentry wrapper)
 │  │  ├─ nearby                     # Location controller, nearby models/utils
 │  │  ├─ network                    # Dio clients, Supabase JWT auth interceptor, log filter
