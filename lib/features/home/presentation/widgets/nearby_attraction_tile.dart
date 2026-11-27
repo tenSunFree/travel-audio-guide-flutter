@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_travel_audio_guide/core/constants/app_colors.dart';
+import 'package:flutter_travel_audio_guide/core/image/app_network_image_provider.dart';
 
 class NearbyAttractionTile extends StatelessWidget {
   const NearbyAttractionTile({
@@ -9,6 +11,7 @@ class NearbyAttractionTile extends StatelessWidget {
     required this.imageUrl,
     required this.onTap,
     super.key,
+    this.isWeb = kIsWeb,
   });
 
   final String name;
@@ -16,6 +19,7 @@ class NearbyAttractionTile extends StatelessWidget {
   final String? distanceLabel;
   final String? imageUrl;
   final VoidCallback onTap;
+  final bool isWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +44,8 @@ class NearbyAttractionTile extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: imageUrl != null
-                  ? Image.network(
-                      imageUrl!,
+                  ? Image(
+                      image: appNetworkImageProvider(imageUrl!, isWeb: isWeb),
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => const Icon(
                         Icons.place_outlined,

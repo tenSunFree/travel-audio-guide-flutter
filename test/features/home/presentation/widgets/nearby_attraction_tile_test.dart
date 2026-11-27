@@ -51,4 +51,42 @@ void main() {
       expect(find.byIcon(Icons.place_outlined), findsOneWidget);
     },
   );
+
+  for (final isWeb in [false, true]) {
+    testWidgets('Nearby image policy (isWeb=$isWeb)', (tester) async {
+      const url = 'http://www.travel.taipei/nearby-test.jpg';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyAttractionTile(
+              name: '景點',
+              distric: '',
+              distanceLabel: null,
+              imageUrl: url,
+              onTap: () {},
+              isWeb: isWeb,
+            ),
+          ),
+        ),
+      );
+      final finder = find.byType(Image);
+      final image = tester.widget<Image>(finder);
+      final provider = image.image as NetworkImage;
+      expect(provider.url, isWeb ? url.replaceFirst('http:', 'https:') : url);
+      expect(
+        provider.webHtmlElementStrategy,
+        isWeb ? WebHtmlElementStrategy.fallback : WebHtmlElementStrategy.never,
+      );
+      final error =
+          image.errorBuilder!(
+                tester.element(finder),
+                StateError('test'),
+                null,
+              )
+              as Icon;
+      expect(error.icon, Icons.place_outlined);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+  }
 }

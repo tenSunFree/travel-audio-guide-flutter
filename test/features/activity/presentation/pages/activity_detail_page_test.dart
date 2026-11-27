@@ -6,9 +6,11 @@ import 'package:flutter_travel_audio_guide/features/activity/presentation/pages/
 
 import '../../../../test_helpers/activity_fixtures.dart';
 
-Widget buildSubject(Activity activity) {
+Widget buildSubject(Activity activity, {bool isWeb = false}) {
   return ProviderScope(
-    child: MaterialApp(home: ActivityDetailPage(activity: activity)),
+    child: MaterialApp(
+      home: ActivityDetailPage(activity: activity, isWeb: isWeb),
+    ),
   );
 }
 
@@ -54,5 +56,50 @@ void main() {
     expect(find.text('0223456789'), findsOneWidget);
     expect(find.text('票價'), findsOneWidget);
     expect(find.text(r'NT$100'), findsOneWidget);
+  });
+
+  for (final isWeb in [false, true]) {
+    testWidgets('HTML network image policy (isWeb=$isWeb)', (tester) async {
+      final activity = buildTestActivity(
+        description:
+            '<p>活動內容</p>'
+            '<img src="http://www.travel.taipei/html-test.jpg" '
+            'width="120" height="60" alt="活動圖片">',
+      );
+      await tester.pumpWidget(buildSubject(activity, isWeb: isWeb));
+      await tester.pump();
+      final image = tester.widget<Image>(find.byType(Image));
+      final provider = image.image as NetworkImage;
+      expect(
+        provider.url,
+        isWeb
+            ? 'https://www.travel.taipei/html-test.jpg'
+            : 'http://www.travel.taipei/html-test.jpg',
+      );
+      expect(
+        provider.webHtmlElementStrategy,
+        isWeb ? WebHtmlElementStrategy.fallback : WebHtmlElementStrategy.never,
+      );
+      expect(image.semanticLabel, '活動圖片');
+      expect(find.byType(AspectRatio), findsWidgets);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+  }
+
+  testWidgets('Web HTML resolves an unquoted relative image source', (
+    tester,
+  ) async {
+    final activity = buildTestActivity(
+      description: '<p>活動內容</p><img src=/media/relative.jpg alt="圖片">',
+    );
+    await tester.pumpWidget(buildSubject(activity, isWeb: true));
+    await tester.pump();
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = image.image as NetworkImage;
+    expect(provider.url, 'https://www.travel.taipei/media/relative.jpg');
+    expect(provider.webHtmlElementStrategy, WebHtmlElementStrategy.fallback);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
   });
 }

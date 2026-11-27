@@ -1,14 +1,17 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_travel_audio_guide/core/constants/app_colors.dart';
 import 'package:flutter_travel_audio_guide/core/image/app_image_cache_manager.dart';
+import 'package:flutter_travel_audio_guide/core/image/app_network_image_provider.dart';
 
 /// A globally unified network image element
 ///
 /// Features:
 /// - Automatically calculates memCacheWidth / memCacheHeight based on width/height × pixelRatio
 /// (Prevents small thumbnails from decoding the entire large image into memory)
-/// - Uses AppImageCacheManager (disk cache stalePeriod: 1 hour)
+/// - Native: uses AppImageCacheManager (disk cache stalePeriod: 1 hour)
+/// - Web: uses NetworkImage with HTML element fallback (no disk cache manager)
 /// - Built-in default placeholder (spinning circle) and errorWidget (broken image icon)
 /// - Supports custom placeholder, errorWidget, and borderRadius
 ///
@@ -31,6 +34,7 @@ class AppCachedNetworkImage extends StatelessWidget {
     this.borderRadius,
     this.placeholder,
     this.errorWidget,
+    this.isWeb = kIsWeb,
   });
 
   final String imageUrl;
@@ -49,10 +53,19 @@ class AppCachedNetworkImage extends StatelessWidget {
   /// otherwise, use the default broken icon.
   final Widget? errorWidget;
 
+  /// Defaults to the actual platform; injectable for VM widget tests.
+  final bool isWeb;
+
   @override
   Widget build(BuildContext context) {
+    final image = isWeb ? _buildWebImage() : _buildNativeImage(context);
+    if (borderRadius == null) return image;
+    return ClipRRect(borderRadius: borderRadius!, child: image);
+  }
+
+  Widget _buildNativeImage(BuildContext context) {
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final image = CachedNetworkImage(
+    return CachedNetworkImage(
       imageUrl: imageUrl,
       cacheManager: AppImageCacheManager.instance,
       width: width,
@@ -67,8 +80,21 @@ class AppCachedNetworkImage extends StatelessWidget {
       errorWidget: (_, _, _) =>
           errorWidget ?? _DefaultError(width: width, height: height),
     );
-    if (borderRadius == null) return image;
-    return ClipRRect(borderRadius: borderRadius!, child: image);
+  }
+
+  Widget _buildWebImage() {
+    return Image(
+      image: appNetworkImageProvider(imageUrl, isWeb: isWeb),
+      width: width,
+      height: height,
+      fit: fit,
+      frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) return child;
+        return placeholder ?? _DefaultPlaceholder(width: width, height: height);
+      },
+      errorBuilder: (_, _, _) =>
+          errorWidget ?? _DefaultError(width: width, height: height),
+    );
   }
 
   int? _toMemCache(double? logicalSize, double pixelRatio) {

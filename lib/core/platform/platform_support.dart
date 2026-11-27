@@ -21,8 +21,8 @@ class PlatformSupport {
 
   /// Returns [url] unchanged on mobile; on Web promotes HTTP to HTTPS for
   /// hosts known to support it (see [upgradeKnownHttpsHost]).
-  static String webSafeUrl(String url) =>
-      kIsWeb ? upgradeKnownHttpsHost(url) : url;
+  static String webSafeUrl(String url, {bool isWeb = kIsWeb}) =>
+      isWeb ? upgradeKnownHttpsHost(url) : url;
 
   /// Promote HTTP only for hosts known to offer HTTPS. Do NOT rewrite
   /// arbitrary media URLs: a server may not support TLS on the same host.
